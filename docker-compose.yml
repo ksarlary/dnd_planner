@@ -1,0 +1,13 @@
+services:
+  bot:
+    build: ./bot
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./bot:/app
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+
+networks:
+  default:
+    name: scnet
