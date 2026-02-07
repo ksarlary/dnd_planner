@@ -1,13 +1,34 @@
 services:
-  bot:
-    build: ./bot
-    restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ./bot:/app
-    environment:
-      DISCORD_TOKEN: ${DISCORD_TOKEN}
+  dnd-bot:
+    container_name: dnd-bot
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+      args:
+        # These default to 1000:1000 if not provided in your shell/.env
+        APP_UID: "${UID:-1000}"
+        APP_GID: "${GID:-1000}"
 
-networks:
-  default:
-    name: scnet
+    # Run as the same UID/GID as your host user to avoid volume permission errors
+    user: "${UID:-1000}:${GID:-1000}"
+
+    # Load variables from .env (recommended place for DISCORD_TOKEN)
+    env_file:
+      - .env
+
+    # Optional: if you want to guarantee the env var name inside the container:
+    environment:
+      DISCORD_TOKEN: "${DISCORD_TOKEN}"
+
+    volumes:
+      # Mount your working code for development (optional).
+      # If you want a “production-like” immutable image, remove this line.
+      - ./bot:/app
+
+      # Persist bot data (availability.json, etc.)
+      - ./bot/data:/app/data
+
+      # If you want config.json read-only, keep this:
+      - ./bot/config.json:/app/config.json:ro
+
+    restart: unless-stopped
