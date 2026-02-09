@@ -1,12 +1,14 @@
 services:
   bot:
-    build: ./bot
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     working_dir: /app
     volumes:
-      - ./bot:/app
-    environment:
-      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      - .:/app
+    env_file:
+      - .env
 
 networks:
   default:
