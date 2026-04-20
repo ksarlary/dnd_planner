@@ -3,7 +3,7 @@ import random
 import discord
 from discord.ext import tasks
 
-from bot.utils import STATUSES
+from bot.utils.utils import STATUSES
 
 log = logging.getLogger("discord-bot")
 

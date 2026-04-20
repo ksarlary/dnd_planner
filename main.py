@@ -18,7 +18,7 @@ def main():
         raise SystemExit("DISCORD_TOKEN not set in environment (.env).")
 
     intents = discord.Intents.default()
-    intents.members = True  # only if you really need members
+    intents.members = True 
 
     bot = Bot(intents=intents)
     bot.run(token)
