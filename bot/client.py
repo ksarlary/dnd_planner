@@ -1,8 +1,8 @@
 import logging
 from discord.ext import commands
 
-from .errors import setup_error_handler
-from .tasks import setup_tasks
+from bot.errors import setup_error_handler
+from bot.tasks import setup_tasks
 from .commands.basic import setup_basic_commands
 
 log = logging.getLogger("discord-bot")

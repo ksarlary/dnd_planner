@@ -2,8 +2,7 @@ import math
 import logging
 import discord
 from discord import app_commands
-
-from ..utils import format_dt, list_roles
+from bot.utils import format_dt, list_roles
 
 log = logging.getLogger("discord-bot")
 
