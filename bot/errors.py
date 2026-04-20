@@ -2,6 +2,8 @@ import logging
 import discord
 from discord import app_commands
 
+from bot.utils.checks import AdminOnlyError
+
 log = logging.getLogger("discord-bot")
 
 def setup_error_handler(bot) -> None:
@@ -15,6 +17,9 @@ def setup_error_handler(bot) -> None:
                     await interaction.response.send_message(content, ephemeral=ephemeral)
             except Exception:
                 pass
+
+        if isinstance(error, AdminOnlyError):
+            return await _safe_respond("🚫 This command is for admins only.", ephemeral=True)
 
         if isinstance(error, app_commands.CommandOnCooldown):
             return await _safe_respond(f"⏳ Slow down! Try again in {error.retry_after:.1f}s.", ephemeral=True)
