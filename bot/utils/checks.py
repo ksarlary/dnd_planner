@@ -7,7 +7,7 @@ class AdminOnlyError(app_commands.CheckFailure):
 def is_admin():
     async def predicate(interaction: Interaction) -> bool:
         if interaction.user.id not in ADMIN_IDS:
-            raise AdminOnlyError("You must be an admin to use this command.")
+            raise AdminOnlyError("You must be an icredibily cool to use this command.")
         return True
 
     return app_commands.check(predicate)
