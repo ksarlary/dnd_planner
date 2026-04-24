@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 
 from bot.storage.profiles import get_profile
+from bot.ui.profile_view import ProfileView
 from bot.ui.register_view import RegisterView
 
 
@@ -31,4 +32,8 @@ def setup_profile_commands(bot) -> None:
         embed.add_field(name="Race", value=profile_data["race"], inline=False)
         embed.add_field(name="Class", value=profile_data["class"], inline=False)
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(
+            embed=embed,
+            view=ProfileView(profile_data),
+            ephemeral=True,
+        )

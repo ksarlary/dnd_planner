@@ -3,24 +3,35 @@ import discord
 from bot.storage.profiles import save_profile
 
 
-class RegisterModal(discord.ui.Modal, title="Register your character"):
-    nickname = discord.ui.TextInput(
-        label="Nickname",
-        placeholder="Enter your nickname",
-        max_length=50,
-    )
+class RegisterModal(discord.ui.Modal):
+    def __init__(self, profile_data: dict[str, str] | None = None):
+        super().__init__(
+            title="Edit your character" if profile_data else "Register your character"
+        )
+        self.is_edit = profile_data is not None
 
-    race = discord.ui.TextInput(
-        label="Race",
-        placeholder="Elf, Human, Tiefling...",
-        max_length=50,
-    )
+        self.nickname = discord.ui.TextInput(
+            label="Nickname",
+            placeholder="Enter your nickname",
+            default=profile_data["nickname"] if profile_data else None,
+            max_length=50,
+        )
+        self.race = discord.ui.TextInput(
+            label="Race",
+            placeholder="Elf, Human, Tiefling...",
+            default=profile_data["race"] if profile_data else None,
+            max_length=50,
+        )
+        self.player_class = discord.ui.TextInput(
+            label="Class",
+            placeholder="Wizard, Rogue, Cleric...",
+            default=profile_data["class"] if profile_data else None,
+            max_length=50,
+        )
 
-    player_class = discord.ui.TextInput(
-        label="Class",
-        placeholder="Wizard, Rogue, Cleric...",
-        max_length=50,
-    )
+        self.add_item(self.nickname)
+        self.add_item(self.race)
+        self.add_item(self.player_class)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         save_profile(
@@ -31,7 +42,7 @@ class RegisterModal(discord.ui.Modal, title="Register your character"):
         )
 
         embed = discord.Embed(
-            title="Profile created",
+            title="Profile updated" if self.is_edit else "Profile created",
             color=discord.Color.green()
         )
         embed.add_field(name="Nickname", value=str(self.nickname), inline=False)

@@ -11,6 +11,8 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://dnd_planner:dnd_planner@db:5432/dnd_planner
+      APP_TIMEZONE: Europe/Paris
+      TZ: Europe/Paris
     depends_on:
       db:
         condition: service_healthy
@@ -22,6 +24,8 @@ services:
       POSTGRES_DB: dnd_planner
       POSTGRES_USER: dnd_planner
       POSTGRES_PASSWORD: dnd_planner
+      TZ: Europe/Paris
+      PGTZ: Europe/Paris
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -29,6 +33,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
 
 networks:
   default:

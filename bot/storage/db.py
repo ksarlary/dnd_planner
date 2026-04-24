@@ -39,7 +39,10 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS planning (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 deadline TIMESTAMP NOT NULL,
-                started_at TIMESTAMP NOT NULL DEFAULT NOW()
+                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                notification_sent_at TIMESTAMP,
+                selected_slot_key TEXT,
+                selected_slot_label TEXT
             )
             """
         )
@@ -47,6 +50,24 @@ def init_db() -> None:
             """
             ALTER TABLE planning
             ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NOT NULL DEFAULT NOW()
+            """
+        )
+        conn.execute(
+            """
+            ALTER TABLE planning
+            ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMP
+            """
+        )
+        conn.execute(
+            """
+            ALTER TABLE planning
+            ADD COLUMN IF NOT EXISTS selected_slot_key TEXT
+            """
+        )
+        conn.execute(
+            """
+            ALTER TABLE planning
+            ADD COLUMN IF NOT EXISTS selected_slot_label TEXT
             """
         )
         conn.execute(
@@ -69,5 +90,61 @@ def init_db() -> None:
                 note TEXT NOT NULL,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS planning_reminders (
+                user_id BIGINT NOT NULL,
+                reminder_date DATE NOT NULL,
+                sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (user_id, reminder_date)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS planning_selected_slots (
+                slot_key TEXT PRIMARY KEY,
+                slot_label TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                session_datetime TIMESTAMP,
+                guild_id BIGINT,
+                event_id BIGINT,
+                notification_sent_at TIMESTAMPTZ,
+                reminder_sent_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        for column_sql in (
+            "ADD COLUMN IF NOT EXISTS session_datetime TIMESTAMP",
+            "ADD COLUMN IF NOT EXISTS guild_id BIGINT",
+            "ADD COLUMN IF NOT EXISTS event_id BIGINT",
+            "ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMPTZ",
+            "ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ",
+        ):
+            conn.execute(f"ALTER TABLE planning_selected_slots {column_sql}")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS planning_target_weeks (
+                week_index INTEGER PRIMARY KEY,
+                week_start DATE NOT NULL,
+                week_label TEXT NOT NULL,
+                deadline TIMESTAMP,
+                notification_sent_at TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            """
+            ALTER TABLE planning_target_weeks
+            ADD COLUMN IF NOT EXISTS deadline TIMESTAMP
+            """
+        )
+        conn.execute(
+            """
+            ALTER TABLE planning_target_weeks
+            ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMP
             """
         )

@@ -6,6 +6,8 @@ from bot.storage.profiles import get_profile
 from bot.storage.planning import (
     get_planning_deadline,
     get_planning_started_at,
+    get_planning_week,
+    get_planning_target_weeks,
     get_user_availabilities,
     get_user_availability_note,
     is_planning_open,
@@ -39,20 +41,106 @@ NEXT_STATUS = {
     "doubtful": "unavailable",
     "unavailable": None,
 }
-LEGEND = "⬜ Unset  🟩 Available  🟨 Doubtful  🟥 Unavailable"
+LEGEND = "⬜ Unset  🟩 Available  🟦 Doubtful  🟥 Unavailable"
 
 
 def build_public_availability_embed(deadline: datetime) -> discord.Embed:
+    deadlines_text = _format_target_week_deadlines(deadline)
     embed = discord.Embed(
         title="Planning is open",
         description=(
-            "Enter your availability for the next session.\n"
+            "Enter your availability for the target planning week or weeks.\n"
             f"{LEGEND}\n"
-            f"Deadline: **{deadline.strftime('%A %d/%m at %H:%M')}**"
+            f"{deadlines_text}"
         ),
         color=discord.Color.green(),
     )
     return embed
+
+
+def build_player_availability_invite_embed(deadline: datetime) -> discord.Embed:
+    deadlines_text = _format_target_week_deadlines(deadline)
+    embed = discord.Embed(
+        title="Your party needs your availability",
+        description=(
+            "Planning is open. Choose the dates where you can join for each target week.\n"
+            f"{LEGEND}\n"
+            f"{deadlines_text}"
+        ),
+        color=discord.Color.green(),
+    )
+    return embed
+
+
+def build_missing_availability_reminder_embed(
+    deadline: datetime,
+    missing_labels: list[str],
+) -> discord.Embed:
+    missing_text = "\n".join(missing_labels[:10])
+    if len(missing_labels) > 10:
+        missing_text += f"\n...and {len(missing_labels) - 10} more"
+
+    embed = discord.Embed(
+        title="Tiny scheduling nudge",
+        description=(
+            "The calendar still has mysterious blank spots with your name on them.\n"
+            "Please fill the missing availabilities before the DM starts preparing consequences.\n"
+            f"Deadline: **{deadline.strftime('%A %d/%m at %H:%M')}**"
+        ),
+        color=discord.Color.orange(),
+    )
+    embed.add_field(
+        name="Missing",
+        value=missing_text or "No missing slots.",
+        inline=False,
+    )
+    return embed
+
+
+def _format_target_week_deadlines(fallback_deadline: datetime) -> str:
+    target_weeks = get_planning_target_weeks()
+    if not target_weeks:
+        return f"Deadline: **{fallback_deadline.strftime('%A %d/%m at %H:%M')}**"
+
+    return "\n".join(
+        f"{target_week['week_label']} deadline: **{target_week['deadline'].strftime('%A %d/%m at %H:%M')}**"
+        for target_week in target_weeks
+        if target_week["deadline"] is not None
+    )
+
+
+def build_sessions_planned_embed(session_labels: list[str]) -> discord.Embed:
+    embed = discord.Embed(
+        title="Sessions planned",
+        description=(
+            "The party calendar has spoken. Pack snacks, sharpen pencils, "
+            "and prepare your finest questionable decisions."
+        ),
+        color=discord.Color.green(),
+    )
+    embed.add_field(
+        name="Incoming sessions",
+        value="\n".join(f"- {label}" for label in session_labels),
+        inline=False,
+    )
+    return embed
+
+
+def build_session_day_before_reminder_embed(session_label: str) -> discord.Embed:
+    embed = discord.Embed(
+        title="Session tomorrow",
+        description=(
+            "Your next DnD session is tomorrow. The dice are stretching. "
+            "The DM is smiling. That is probably fine."
+        ),
+        color=discord.Color.orange(),
+    )
+    embed.add_field(name="When", value=session_label, inline=False)
+    return embed
+
+
+def _use_ephemeral(interaction: discord.Interaction) -> bool:
+    return interaction.guild is not None
 
 
 class PublicAvailabilityView(discord.ui.View):
@@ -73,7 +161,7 @@ class PublicAvailabilityView(discord.ui.View):
         if deadline is None or not is_planning_open():
             await interaction.response.send_message(
                 "Planning is not open right now.",
-                ephemeral=True,
+                ephemeral=_use_ephemeral(interaction),
             )
             return
 
@@ -87,35 +175,115 @@ class PublicAvailabilityView(discord.ui.View):
             await interaction.response.send_message(
                 embed=embed,
                 view=RegisterView(),
-                ephemeral=True,
+                ephemeral=_use_ephemeral(interaction),
             )
             return
 
         started_at = get_planning_started_at()
-        view = AvailabilityView(
-            user_id=user_id,
-            slots=get_availability_slots(started_at),
-            statuses=get_user_availabilities(user_id),
-            note=get_user_availability_note(user_id),
-        )
+        target_weeks = get_planning_target_weeks()
+        if len(target_weeks) > 1:
+            view = AvailabilityWeekSelectionView(
+                user_id=user_id,
+                target_weeks=target_weeks,
+            )
+            await interaction.response.send_message(
+                embed=view.build_embed(),
+                view=view,
+                ephemeral=_use_ephemeral(interaction),
+            )
+            return
+
+        week_index = target_weeks[0]["week_index"] if target_weeks else 1
+        view = build_availability_view_for_week(user_id, started_at, week_index)
 
         await interaction.response.send_message(
             embed=view.build_embed(),
             view=view,
-            ephemeral=True,
+            ephemeral=_use_ephemeral(interaction),
         )
+
+
+def build_availability_view_for_week(
+    user_id: int,
+    started_at: datetime | None,
+    week_index: int,
+) -> "AvailabilityView":
+    return AvailabilityView(
+        user_id=user_id,
+        week_index=week_index,
+        slots=get_availability_slots(started_at, week_index),
+        statuses=get_user_availabilities(user_id),
+        note=get_user_availability_note(user_id),
+    )
+
+
+class AvailabilityWeekSelectionView(discord.ui.View):
+    def __init__(self, user_id: int, target_weeks: list[dict]):
+        super().__init__(timeout=300)
+        self.user_id = user_id
+
+        for target_week in target_weeks:
+            self.add_item(
+                AvailabilityWeekButton(
+                    user_id=user_id,
+                    week_index=target_week["week_index"],
+                    label=target_week["week_label"],
+                )
+            )
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+
+        await interaction.response.send_message(
+            "This availability form belongs to another player.",
+            ephemeral=_use_ephemeral(interaction),
+        )
+        return False
+
+    def build_embed(self) -> discord.Embed:
+        return discord.Embed(
+            title="Choose a week",
+            description="Pick the week you want to complete.",
+            color=discord.Color.blurple(),
+        )
+
+
+class AvailabilityWeekButton(discord.ui.Button):
+    def __init__(self, user_id: int, week_index: int, label: str):
+        self.user_id = user_id
+        self.week_index = week_index
+        super().__init__(label=label, style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_planning_open(week_index=self.week_index):
+            await interaction.response.send_message(
+                "Planning is closed for this week. Availability changes are no longer accepted.",
+                ephemeral=_use_ephemeral(interaction),
+            )
+            return
+
+        started_at = get_planning_started_at()
+        view = build_availability_view_for_week(
+            self.user_id,
+            started_at,
+            self.week_index,
+        )
+        await interaction.response.edit_message(embed=view.build_embed(), view=view)
 
 
 class AvailabilityView(discord.ui.View):
     def __init__(
         self,
         user_id: int,
+        week_index: int,
         slots: list[tuple[str, str]],
         statuses: dict[str, str],
         note: str | None,
     ):
         super().__init__(timeout=900)
         self.user_id = user_id
+        self.week_index = week_index
         self.slots = slots
         self.statuses = statuses
         self.note = note
@@ -129,18 +297,18 @@ class AvailabilityView(discord.ui.View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.user_id:
-            if is_planning_open():
+            if is_planning_open(week_index=self.week_index):
                 return True
 
             await interaction.response.send_message(
-                "Planning is closed. Availability changes are no longer accepted.",
-                ephemeral=True,
+                "Planning is closed for this week. Availability changes are no longer accepted.",
+                ephemeral=_use_ephemeral(interaction),
             )
             return False
 
         await interaction.response.send_message(
             "This availability form belongs to another player.",
-            ephemeral=True,
+            ephemeral=_use_ephemeral(interaction),
         )
         return False
 
@@ -152,9 +320,15 @@ class AvailabilityView(discord.ui.View):
                 item.label = f"{STATUS_EMOJIS[status]} {item.slot_label}"
 
     def build_embed(self) -> discord.Embed:
+        target_week = get_planning_week(self.week_index)
+        deadline = target_week["deadline"] if target_week else None
+        description = "Click a time slot to cycle through each status."
+        if deadline is not None:
+            description += f"\nDeadline: **{deadline.strftime('%A %d/%m at %H:%M')}**"
+
         embed = discord.Embed(
-            title="Your availability",
-            description="Click a time slot to cycle through each status.",
+            title=f"Your availability - Week {self.week_index}",
+            description=description,
             color=discord.Color.blurple(),
         )
 
@@ -199,7 +373,7 @@ class AvailabilitySlotButton(discord.ui.Button):
         if not save_user_availability(view.user_id, self.slot_key, next_status):
             await interaction.response.send_message(
                 "Planning is closed. Availability changes are no longer accepted.",
-                ephemeral=True,
+                ephemeral=_use_ephemeral(interaction),
             )
             return
 
@@ -242,22 +416,26 @@ class AvailabilityNoteModal(discord.ui.Modal):
         if interaction.user.id != self.availability_view.user_id:
             await interaction.response.send_message(
                 "This availability form belongs to another player.",
-                ephemeral=True,
+                ephemeral=_use_ephemeral(interaction),
             )
             return
 
-        if not is_planning_open():
+        if not is_planning_open(week_index=self.availability_view.week_index):
             await interaction.response.send_message(
                 "Planning is closed. Availability changes are no longer accepted.",
-                ephemeral=True,
+                ephemeral=_use_ephemeral(interaction),
             )
             return
 
         note = str(self.note_input).strip()
-        if not save_user_availability_note(self.availability_view.user_id, note):
+        if not save_user_availability_note(
+            self.availability_view.user_id,
+            note,
+            self.availability_view.week_index,
+        ):
             await interaction.response.send_message(
                 "Planning is closed. Availability changes are no longer accepted.",
-                ephemeral=True,
+                ephemeral=_use_ephemeral(interaction),
             )
             return
 
