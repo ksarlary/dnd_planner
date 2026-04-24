@@ -4,6 +4,7 @@ from datetime import datetime, time
 import discord
 
 from bot.storage.planning import set_planning_deadline
+from bot.ui.availability_view import PublicAvailabilityView, build_public_availability_embed
 from bot.utils.planning import get_upcoming_week_days
 
 log = logging.getLogger("discord-bot")
@@ -27,7 +28,7 @@ class DeadlineButton(discord.ui.Button):
         )
 
         embed = discord.Embed(
-            title="Planning started ✅",
+            title="Planning started",
             description=(
                 f"Availability collection is now open.\n"
                 f"Deadline: **{deadline.strftime('%A %d/%m at %H:%M')}**"
@@ -36,6 +37,12 @@ class DeadlineButton(discord.ui.Button):
         )
 
         await interaction.response.edit_message(embed=embed, view=None)
+
+        if interaction.channel is not None:
+            await interaction.channel.send(
+                embed=build_public_availability_embed(deadline),
+                view=PublicAvailabilityView(),
+            )
 
 
 class PlanningDeadlineView(discord.ui.View):

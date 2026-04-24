@@ -7,6 +7,8 @@ from bot.commands.basic import setup_basic_commands
 from bot.commands.profile import setup_profile_commands
 from bot.commands.admin import setup_admin_commands
 from bot.commands.planning import setup_planning_commands
+from bot.storage.db import init_db
+from bot.ui.availability_view import PublicAvailabilityView
 
 log = logging.getLogger("discord-bot")
 
@@ -16,6 +18,12 @@ class Bot(commands.Bot):
 
     async def setup_hook(self) -> None:
         log.info("setup_hook started")
+
+        init_db()
+        log.info("database initialized")
+
+        self.add_view(PublicAvailabilityView())
+        log.info("persistent views loaded")
 
         setup_error_handler(self)
         log.info("error handler loaded")
