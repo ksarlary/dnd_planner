@@ -14,6 +14,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
+COPY bot/ ./bot/
 
 # Expect DISCORD_TOKEN via env or secrets
 CMD ["python", "main.py"]

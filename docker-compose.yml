@@ -9,7 +9,30 @@ services:
       - .:/app
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://dnd_planner:dnd_planner@db:5432/dnd_planner
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dnd_planner
+      POSTGRES_USER: dnd_planner
+      POSTGRES_PASSWORD: dnd_planner
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dnd_planner -d dnd_planner"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 networks:
   default:
     name: scnet
+
+volumes:
+  postgres_data:

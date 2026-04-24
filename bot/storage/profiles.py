@@ -1,38 +1,37 @@
-import json
-from pathlib import Path
+from psycopg.rows import dict_row
 
-DATA_DIR = Path("data")
-DATA_DIR.mkdir(exist_ok=True)
-
-PROFILES_FILE = DATA_DIR / "profiles.json"
+from bot.storage.db import get_connection
 
 
-def _load_profiles() -> dict:
-    if not PROFILES_FILE.exists():
-        return {}
+def get_profile(user_id: int) -> dict[str, str] | None:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            row = cur.execute(
+                """
+                SELECT nickname, race, player_class AS class
+                FROM profiles
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            ).fetchone()
 
-    with open(PROFILES_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _save_profiles(profiles: dict) -> None:
-    with open(PROFILES_FILE, "w", encoding="utf-8") as f:
-        json.dump(profiles, f, indent=2, ensure_ascii=False)
-
-
-def get_profile(user_id: int) -> dict | None:
-    profiles = _load_profiles()
-    return profiles.get(str(user_id))
+    return dict(row) if row else None
 
 
 def save_profile(user_id: int, nickname: str, race: str, player_class: str) -> None:
-    profiles = _load_profiles()
-    profiles[str(user_id)] = {
-        "nickname": nickname,
-        "race": race,
-        "class": player_class,
-    }
-    _save_profiles(profiles)
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO profiles (user_id, nickname, race, player_class)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE
+            SET nickname = EXCLUDED.nickname,
+                race = EXCLUDED.race,
+                player_class = EXCLUDED.player_class,
+                updated_at = NOW()
+            """,
+            (user_id, nickname, race, player_class),
+        )
 
 
 def profile_exists(user_id: int) -> bool:
