@@ -13,7 +13,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY bot.py .
+COPY main.py .
+COPY bot/ ./bot/
 
 # Expect DISCORD_TOKEN via env or secrets
-CMD ["python", "bot.py"]
+CMD ["python", "main.py"]
