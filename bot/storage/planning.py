@@ -55,9 +55,10 @@ def set_planning_deadline(
                     week_start,
                     week_label,
                     deadline,
-                    notification_sent_at
+                    notification_sent_at,
+                    no_session_selected_at
                 )
-                VALUES (%s, %s, %s, %s, NULL)
+                VALUES (%s, %s, %s, %s, NULL, NULL)
                 """,
                 (
                     week_index,
@@ -99,7 +100,13 @@ def get_planning_target_weeks() -> list[dict]:
         with conn.cursor(row_factory=dict_row) as cur:
             rows = cur.execute(
                 """
-                SELECT week_index, week_start, week_label, deadline, notification_sent_at
+                SELECT
+                    week_index,
+                    week_start,
+                    week_label,
+                    deadline,
+                    notification_sent_at,
+                    no_session_selected_at
                 FROM planning_target_weeks
                 ORDER BY week_index
                 """
@@ -113,7 +120,13 @@ def get_planning_week(week_index: int) -> dict | None:
         with conn.cursor(row_factory=dict_row) as cur:
             row = cur.execute(
                 """
-                SELECT week_index, week_start, week_label, deadline, notification_sent_at
+                SELECT
+                    week_index,
+                    week_start,
+                    week_label,
+                    deadline,
+                    notification_sent_at,
+                    no_session_selected_at
                 FROM planning_target_weeks
                 WHERE week_index = %s
                 """,
@@ -149,11 +162,16 @@ def mark_planning_week_notification_sent(week_index: int) -> None:
         )
 
 
-def set_selected_planning_slots(slots: list[dict]) -> None:
+def set_selected_planning_slots(
+    slots: list[dict],
+    recap_player: dict | None = None,
+) -> None:
     limited_slots = slots[:2]
     week_prefix = None
     if limited_slots:
         week_prefix = limited_slots[0]["slot_key"].split(":", maxsplit=1)[0]
+    recap_user_id = recap_player["user_id"] if recap_player else None
+    recap_nickname = recap_player["nickname"] if recap_player else None
 
     with get_connection() as conn:
         if week_prefix:
@@ -177,9 +195,11 @@ def set_selected_planning_slots(slots: list[dict]) -> None:
                     session_datetime,
                     guild_id,
                     event_id,
+                    recap_user_id,
+                    recap_nickname,
                     notification_sent_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
                 """,
                 (
                     slot["slot_key"],
@@ -188,11 +208,21 @@ def set_selected_planning_slots(slots: list[dict]) -> None:
                     slot["session_datetime"],
                     slot["guild_id"],
                     slot.get("event_id"),
+                    recap_user_id,
+                    recap_nickname,
                 ),
             )
 
         if limited_slots:
             first_slot = limited_slots[0]
+            conn.execute(
+                """
+                UPDATE planning_target_weeks
+                SET no_session_selected_at = NULL
+                WHERE week_index = %s
+                """,
+                (_slot_week_index(first_slot["slot_key"]),),
+            )
             conn.execute(
                 """
                 UPDATE planning
@@ -213,6 +243,34 @@ def set_selected_planning_slots(slots: list[dict]) -> None:
             )
 
 
+def set_no_session_for_week(week_index: int) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            DELETE FROM planning_selected_slots
+            WHERE slot_key LIKE %s
+            """,
+            (f"week_{week_index}:%",),
+        )
+        conn.execute(
+            """
+            UPDATE planning_target_weeks
+            SET no_session_selected_at = NOW()
+            WHERE week_index = %s
+            """,
+            (week_index,),
+        )
+        conn.execute(
+            """
+            UPDATE planning
+            SET selected_slot_key = NULL,
+                selected_slot_label = NULL
+            WHERE selected_slot_key LIKE %s
+            """,
+            (f"week_{week_index}:%",),
+        )
+
+
 def get_selected_planning_slots(week_index: int | None = None) -> list[dict]:
     params = ()
     where_clause = ""
@@ -231,6 +289,8 @@ def get_selected_planning_slots(week_index: int | None = None) -> list[dict]:
                     session_datetime,
                     guild_id,
                     event_id,
+                    recap_user_id,
+                    recap_nickname,
                     notification_sent_at,
                     reminder_sent_at
                 FROM planning_selected_slots
@@ -250,7 +310,15 @@ def get_sessions_needing_day_before_reminder(current_time: datetime) -> list[dic
         with conn.cursor(row_factory=dict_row) as cur:
             rows = cur.execute(
                 """
-                SELECT slot_key, slot_label, position, session_datetime, guild_id, event_id
+                SELECT
+                    slot_key,
+                    slot_label,
+                    position,
+                    session_datetime,
+                    guild_id,
+                    event_id,
+                    recap_user_id,
+                    recap_nickname
                 FROM planning_selected_slots
                 WHERE session_datetime::date = %s
                     AND reminder_sent_at IS NULL
@@ -272,6 +340,32 @@ def mark_session_day_before_reminder_sent(slot_key: str) -> None:
             """,
             (slot_key,),
         )
+
+
+def record_recap_player(player: dict) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO planning_recap_history (user_id, nickname)
+            VALUES (%s, %s)
+            """,
+            (player["user_id"], player["nickname"]),
+        )
+
+
+def get_last_recap_player() -> dict | None:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            row = cur.execute(
+                """
+                SELECT user_id, nickname, created_at
+                FROM planning_recap_history
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+    return dict(row) if row else None
 
 
 def is_planning_open(
@@ -318,7 +412,7 @@ def get_user_availabilities(user_id: int) -> dict[str, str]:
     return {row["slot_key"]: row["status"] for row in rows}
 
 
-def get_planning_summary_rows() -> list[dict]:
+def get_planning_summary_rows(week_index: int = 1) -> list[dict]:
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             rows = cur.execute(
@@ -330,10 +424,13 @@ def get_planning_summary_rows() -> list[dict]:
                     pa.slot_key,
                     pa.status
                 FROM profiles p
-                LEFT JOIN planning_notes pn ON pn.user_id = p.user_id
+                LEFT JOIN planning_notes pn
+                    ON pn.user_id = p.user_id
+                    AND pn.week_index = %s
                 LEFT JOIN planning_availabilities pa ON pa.user_id = p.user_id
                 ORDER BY LOWER(p.nickname), p.user_id, pa.slot_key
-                """
+                """,
+                (week_index,),
             ).fetchall()
 
     return [dict(row) for row in rows]
@@ -344,7 +441,7 @@ def get_registered_players() -> list[dict]:
         with conn.cursor(row_factory=dict_row) as cur:
             rows = cur.execute(
                 """
-                SELECT user_id, nickname
+                SELECT user_id, nickname, race, player_class AS class
                 FROM profiles
                 ORDER BY LOWER(nickname), user_id
                 """
@@ -427,15 +524,17 @@ def save_user_availability(user_id: int, slot_key: str, status: str | None) -> b
         return True
 
 
-def get_user_availability_note(user_id: int) -> str | None:
+def get_user_availability_note(user_id: int, week_index: int = 1) -> str | None:
+    week_index = week_index or 1
+
     with get_connection() as conn:
         row = conn.execute(
             """
             SELECT note
             FROM planning_notes
-            WHERE user_id = %s
+            WHERE user_id = %s AND week_index = %s
             """,
-            (user_id,),
+            (user_id, week_index),
         ).fetchone()
 
     return row[0] if row else None
@@ -446,6 +545,8 @@ def save_user_availability_note(
     note: str,
     week_index: int | None = None,
 ) -> bool:
+    week_index = week_index or 1
+
     if not is_planning_open(week_index=week_index):
         return False
 
@@ -456,21 +557,21 @@ def save_user_availability_note(
             conn.execute(
                 """
                 DELETE FROM planning_notes
-                WHERE user_id = %s
+                WHERE user_id = %s AND week_index = %s
                 """,
-                (user_id,),
+                (user_id, week_index),
             )
             return True
 
         conn.execute(
             """
-            INSERT INTO planning_notes (user_id, note)
-            VALUES (%s, %s)
-            ON CONFLICT (user_id) DO UPDATE
+            INSERT INTO planning_notes (user_id, week_index, note)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, week_index) DO UPDATE
             SET note = EXCLUDED.note,
                 updated_at = NOW()
             """,
-            (user_id, note),
+            (user_id, week_index, note),
         )
         return True
 

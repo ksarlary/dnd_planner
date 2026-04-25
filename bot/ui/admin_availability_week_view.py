@@ -30,5 +30,5 @@ class AdminAvailabilityWeekButton(discord.ui.Button):
         suggestions = get_week_suggested_dates(self.week_index)
         await interaction.response.edit_message(
             embed=build_week_availability_summary_embed(self.week_index),
-            view=PlanningSelectionView(suggestions),
+            view=PlanningSelectionView(suggestions, self.week_index),
         )

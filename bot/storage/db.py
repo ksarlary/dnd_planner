@@ -86,10 +86,25 @@ def init_db() -> None:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS planning_notes (
-                user_id BIGINT PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                week_index INTEGER NOT NULL DEFAULT 1,
                 note TEXT NOT NULL,
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (user_id, week_index)
             )
+            """
+        )
+        conn.execute(
+            """
+            ALTER TABLE planning_notes
+            ADD COLUMN IF NOT EXISTS week_index INTEGER NOT NULL DEFAULT 1
+            """
+        )
+        conn.execute("ALTER TABLE planning_notes DROP CONSTRAINT IF EXISTS planning_notes_pkey")
+        conn.execute(
+            """
+            ALTER TABLE planning_notes
+            ADD CONSTRAINT planning_notes_pkey PRIMARY KEY (user_id, week_index)
             """
         )
         conn.execute(
@@ -111,6 +126,8 @@ def init_db() -> None:
                 session_datetime TIMESTAMP,
                 guild_id BIGINT,
                 event_id BIGINT,
+                recap_user_id BIGINT,
+                recap_nickname TEXT,
                 notification_sent_at TIMESTAMPTZ,
                 reminder_sent_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -121,10 +138,22 @@ def init_db() -> None:
             "ADD COLUMN IF NOT EXISTS session_datetime TIMESTAMP",
             "ADD COLUMN IF NOT EXISTS guild_id BIGINT",
             "ADD COLUMN IF NOT EXISTS event_id BIGINT",
+            "ADD COLUMN IF NOT EXISTS recap_user_id BIGINT",
+            "ADD COLUMN IF NOT EXISTS recap_nickname TEXT",
             "ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMPTZ",
             "ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ",
         ):
             conn.execute(f"ALTER TABLE planning_selected_slots {column_sql}")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS planning_recap_history (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                nickname TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS planning_target_weeks (
@@ -132,7 +161,8 @@ def init_db() -> None:
                 week_start DATE NOT NULL,
                 week_label TEXT NOT NULL,
                 deadline TIMESTAMP,
-                notification_sent_at TIMESTAMP
+                notification_sent_at TIMESTAMP,
+                no_session_selected_at TIMESTAMPTZ
             )
             """
         )
@@ -146,5 +176,11 @@ def init_db() -> None:
             """
             ALTER TABLE planning_target_weeks
             ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMP
+            """
+        )
+        conn.execute(
+            """
+            ALTER TABLE planning_target_weeks
+            ADD COLUMN IF NOT EXISTS no_session_selected_at TIMESTAMPTZ
             """
         )

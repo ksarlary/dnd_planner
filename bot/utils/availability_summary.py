@@ -44,31 +44,32 @@ def build_availability_summary_embed() -> discord.Embed:
 def build_week_availability_summary_embed(week_index: int) -> discord.Embed:
     target_week = get_planning_week(week_index)
     deadline = target_week["deadline"] if target_week else get_planning_deadline()
+    week_label = target_week["week_label"] if target_week else f"Week {week_index}"
     started_at = get_planning_started_at()
     slots = get_availability_slots(started_at, week_index)
-    players = _get_players()
+    players = _get_players(week_index)
     suggestions = _get_suggested_dates(slots, players)
 
     embed = discord.Embed(
-        title=f"Planning summary - Week {week_index}",
+        title=f"📊 Planning summary - {week_label.lower()}",
         description=_build_description(deadline, players, week_index),
         color=discord.Color.blurple(),
     )
 
     embed.add_field(
-        name="Sure dates",
+        name="✅ Sure dates",
         value=_format_sure_dates(suggestions),
         inline=False,
     )
     embed.add_field(
-        name="Probable dates",
+        name="🔵 Probable dates",
         value=_format_probable_dates(suggestions),
         inline=False,
     )
 
     if not players:
         embed.add_field(
-            name="Players",
+            name="🧑‍🤝‍🧑 Players",
             value="No registered players found.",
             inline=False,
         )
@@ -91,7 +92,7 @@ def get_suggested_dates() -> list[SuggestedDate]:
 def get_week_suggested_dates(week_index: int) -> list[SuggestedDate]:
     started_at = get_planning_started_at()
     slots = get_availability_slots(started_at, week_index)
-    players = _get_players()
+    players = _get_players(week_index)
 
     if not players:
         return []
@@ -154,8 +155,8 @@ def _slot_week_index(slot_key: str) -> int:
     return int(prefix.removeprefix("week_"))
 
 
-def _get_players() -> dict[int, PlayerAvailability]:
-    rows = get_planning_summary_rows()
+def _get_players(week_index: int) -> dict[int, PlayerAvailability]:
+    rows = get_planning_summary_rows(week_index)
     players: dict[int, PlayerAvailability] = {}
 
     for row in rows:
@@ -176,9 +177,9 @@ def _build_description(
     players: dict[int, PlayerAvailability],
     week_index: int,
 ) -> str:
-    lines = [f"Registered players: **{len(players)}**"]
+    lines = [f"🧑‍🤝‍🧑 Registered players: **{len(players)}**"]
     if deadline is not None:
-        lines.append(f"Deadline: **{deadline.strftime('%A %d/%m at %H:%M')}**")
+        lines.append(f"⏳ Deadline: **{deadline.strftime('%A %d/%m at %H:%M')}**")
 
     selected_slots = get_selected_planning_slots(week_index)
     if selected_slots:
@@ -186,7 +187,14 @@ def _build_description(
             selected_slot["slot_label"]
             for selected_slot in selected_slots
         )
-        lines.append(f"Selected dates: **{selected_labels}**")
+        lines.append(f"📅 Selected dates: **{selected_labels}**")
+        recap_nickname = selected_slots[0].get("recap_nickname")
+        if recap_nickname:
+            lines.append(f"📜 Recap: **{recap_nickname}**")
+    else:
+        target_week = get_planning_week(week_index)
+        if target_week and target_week["no_session_selected_at"] is not None:
+            lines.append("🛌 Selected dates: **No session on this week**")
 
     return "\n".join(lines)
 
@@ -233,6 +241,6 @@ def _format_player(
     lines.append(f"{STATUS_EMOJIS['missing']} {', '.join(missing) if missing else '-'}")
 
     if player.note:
-        lines.append(f"Note: {player.note}")
+        lines.append(f"📝 Note: {player.note}")
 
     return "\n".join(lines)

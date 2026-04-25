@@ -160,7 +160,10 @@ def setup_tasks(bot) -> None:
 
             players = get_registered_players()
             for session in sessions:
-                embed = build_session_day_before_reminder_embed(session["slot_label"])
+                embed = build_session_day_before_reminder_embed(
+                    session["slot_label"],
+                    session.get("recap_nickname"),
+                )
                 for player in players:
                     user_id = player["user_id"]
                     try:

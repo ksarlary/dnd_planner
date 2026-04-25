@@ -47,9 +47,9 @@ LEGEND = "⬜ Unset  🟩 Available  🟦 Doubtful  🟥 Unavailable"
 def build_public_availability_embed(deadline: datetime) -> discord.Embed:
     deadlines_text = _format_target_week_deadlines(deadline)
     embed = discord.Embed(
-        title="Planning is open",
+        title="🗓️ Planning is open",
         description=(
-            "Enter your availability for the target planning week or weeks.\n"
+            "Enter your availability for the target planning week or weeks. 🎲\n"
             f"{LEGEND}\n"
             f"{deadlines_text}"
         ),
@@ -61,9 +61,9 @@ def build_public_availability_embed(deadline: datetime) -> discord.Embed:
 def build_player_availability_invite_embed(deadline: datetime) -> discord.Embed:
     deadlines_text = _format_target_week_deadlines(deadline)
     embed = discord.Embed(
-        title="Your party needs your availability",
+        title="🧭 Your party needs your availability",
         description=(
-            "Planning is open. Choose the dates where you can join for each target week.\n"
+            "Planning is open. Choose the dates where you can join for each target week. 🎲\n"
             f"{LEGEND}\n"
             f"{deadlines_text}"
         ),
@@ -81,7 +81,7 @@ def build_missing_availability_reminder_embed(
         missing_text += f"\n...and {len(missing_labels) - 10} more"
 
     embed = discord.Embed(
-        title="Tiny scheduling nudge",
+        title="⏰ Tiny scheduling nudge",
         description=(
             "The calendar still has mysterious blank spots with your name on them.\n"
             "Please fill the missing availabilities before the DM starts preparing consequences.\n"
@@ -90,7 +90,7 @@ def build_missing_availability_reminder_embed(
         color=discord.Color.orange(),
     )
     embed.add_field(
-        name="Missing",
+        name="🕳️ Missing",
         value=missing_text or "No missing slots.",
         inline=False,
     )
@@ -109,9 +109,13 @@ def _format_target_week_deadlines(fallback_deadline: datetime) -> str:
     )
 
 
-def build_sessions_planned_embed(session_labels: list[str]) -> discord.Embed:
+def build_sessions_planned_embed(
+    session_labels: list[str],
+    taunt: str | None = None,
+    recap_nickname: str | None = None,
+) -> discord.Embed:
     embed = discord.Embed(
-        title="Sessions planned",
+        title="🎲 Sessions planned",
         description=(
             "The party calendar has spoken. Pack snacks, sharpen pencils, "
             "and prepare your finest questionable decisions."
@@ -119,23 +123,57 @@ def build_sessions_planned_embed(session_labels: list[str]) -> discord.Embed:
         color=discord.Color.green(),
     )
     embed.add_field(
-        name="Incoming sessions",
+        name="📅 Incoming sessions",
         value="\n".join(f"- {label}" for label in session_labels),
         inline=False,
     )
+    if recap_nickname:
+        embed.add_field(
+            name="📜 Previous session recap",
+            value=f"{recap_nickname} is on recap duty.",
+            inline=False,
+        )
+    if taunt:
+        embed.add_field(name="🪶 Calendar blame", value=taunt, inline=False)
     return embed
 
 
-def build_session_day_before_reminder_embed(session_label: str) -> discord.Embed:
+def build_no_session_planned_embed(
+    week_label: str,
+    taunt: str | None = None,
+) -> discord.Embed:
     embed = discord.Embed(
-        title="Session tomorrow",
+        title="🛌 No session planned",
+        description=(
+            f"No DnD session is planned for **{week_label.lower()}**.\n"
+            "The calendar takes a dramatic pause. Use it wisely."
+        ),
+        color=discord.Color.orange(),
+    )
+    if taunt:
+        embed.add_field(name="🪶 Calendar blame", value=taunt, inline=False)
+    return embed
+
+
+def build_session_day_before_reminder_embed(
+    session_label: str,
+    recap_nickname: str | None = None,
+) -> discord.Embed:
+    embed = discord.Embed(
+        title="⏰ Session tomorrow",
         description=(
             "Your next DnD session is tomorrow. The dice are stretching. "
             "The DM is smiling. That is probably fine."
         ),
         color=discord.Color.orange(),
     )
-    embed.add_field(name="When", value=session_label, inline=False)
+    embed.add_field(name="📅 When", value=session_label, inline=False)
+    if recap_nickname:
+        embed.add_field(
+            name="📜 Recap",
+            value=f"{recap_nickname} is doing the previous session recap.",
+            inline=False,
+        )
     return embed
 
 
@@ -168,8 +206,8 @@ class PublicAvailabilityView(discord.ui.View):
         user_id = interaction.user.id
         if get_profile(user_id) is None:
             embed = discord.Embed(
-                title="You are not registered yet",
-                description="Create your DnD profile before entering availability.",
+                title="🧾 You are not registered yet",
+                description="Create your DnD profile before entering availability. ✍️",
                 color=discord.Color.orange(),
             )
             await interaction.response.send_message(
@@ -213,7 +251,7 @@ def build_availability_view_for_week(
         week_index=week_index,
         slots=get_availability_slots(started_at, week_index),
         statuses=get_user_availabilities(user_id),
-        note=get_user_availability_note(user_id),
+        note=get_user_availability_note(user_id, week_index),
     )
 
 
@@ -243,8 +281,8 @@ class AvailabilityWeekSelectionView(discord.ui.View):
 
     def build_embed(self) -> discord.Embed:
         return discord.Embed(
-            title="Choose a week",
-            description="Pick the week you want to complete.",
+            title="🗓️ Choose a week",
+            description="Pick the week you want to complete. 📌",
             color=discord.Color.blurple(),
         )
 
@@ -322,12 +360,13 @@ class AvailabilityView(discord.ui.View):
     def build_embed(self) -> discord.Embed:
         target_week = get_planning_week(self.week_index)
         deadline = target_week["deadline"] if target_week else None
+        week_label = target_week["week_label"] if target_week else f"week {self.week_index}"
         description = "Click a time slot to cycle through each status."
         if deadline is not None:
             description += f"\nDeadline: **{deadline.strftime('%A %d/%m at %H:%M')}**"
 
         embed = discord.Embed(
-            title=f"Your availability - Week {self.week_index}",
+            title=f"🧭 Your availability - {week_label.lower()}",
             description=description,
             color=discord.Color.blurple(),
         )
@@ -344,7 +383,7 @@ class AvailabilityView(discord.ui.View):
                 inline=True,
             )
 
-        embed.add_field(name="Note", value=self.note or "-", inline=False)
+        embed.add_field(name="📝 Note", value=self.note or "-", inline=False)
         return embed
 
 

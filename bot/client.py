@@ -4,6 +4,7 @@ from discord.ext import commands
 from bot.errors import setup_error_handler
 from bot.tasks import setup_tasks
 from bot.commands.basic import setup_basic_commands
+from bot.commands.fun import setup_fun_commands
 from bot.commands.profile import setup_profile_commands
 from bot.commands.admin import setup_admin_commands
 from bot.commands.planning import setup_planning_commands
@@ -33,6 +34,9 @@ class Bot(commands.Bot):
 
         setup_basic_commands(self)
         log.info("basic commands loaded")
+
+        setup_fun_commands(self)
+        log.info("fun commands loaded")
 
         setup_profile_commands(self)
         log.info("profile commands loaded")

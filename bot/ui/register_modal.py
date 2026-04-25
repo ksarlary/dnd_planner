@@ -42,11 +42,11 @@ class RegisterModal(discord.ui.Modal):
         )
 
         embed = discord.Embed(
-            title="Profile updated" if self.is_edit else "Profile created",
+            title="✅ Profile updated" if self.is_edit else "✅ Profile created",
             color=discord.Color.green()
         )
-        embed.add_field(name="Nickname", value=str(self.nickname), inline=False)
-        embed.add_field(name="Race", value=str(self.race), inline=False)
-        embed.add_field(name="Class", value=str(self.player_class), inline=False)
+        embed.add_field(name="🪪 Nickname", value=str(self.nickname), inline=False)
+        embed.add_field(name="🧬 Race", value=str(self.race), inline=False)
+        embed.add_field(name="⚔️ Class", value=str(self.player_class), inline=False)
 
         await interaction.response.send_message(embed=embed, ephemeral=True)

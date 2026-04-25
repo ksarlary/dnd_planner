@@ -22,8 +22,18 @@ def get_target_week_start(started_at: datetime | None = None, week_index: int = 
 
 
 def get_target_week_label(week_start: date, week_index: int) -> str:
-    week_end = week_start + timedelta(days=6)
-    return f"Week {week_index}: {week_start.strftime('%d/%m')} - {week_end.strftime('%d/%m')}"
+    return f"Week of {_format_day_month(week_start)}"
+
+
+def _format_day_month(day: date) -> str:
+    return f"{day.day}{_ordinal_suffix(day.day)} {day.strftime('%B')}"
+
+
+def _ordinal_suffix(day: int) -> str:
+    if 11 <= day % 100 <= 13:
+        return "th"
+
+    return {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
 
 
 def get_availability_slot_details(
@@ -70,5 +80,17 @@ def get_upcoming_week_days() -> list[datetime]:
     today = datetime.now().date()
     return [
         datetime.combine(today + timedelta(days=i), datetime.min.time())
+        for i in range(7)
+    ]
+
+
+def get_deadline_days_before_target_week(week_index: int) -> list[datetime]:
+    """
+    Returns the Monday-Sunday deadline window before a target week starts.
+    """
+    target_week_start = get_target_week_start(week_index=week_index)
+    deadline_week_start = target_week_start - timedelta(days=7)
+    return [
+        datetime.combine(deadline_week_start + timedelta(days=i), datetime.min.time())
         for i in range(7)
     ]

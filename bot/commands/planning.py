@@ -9,6 +9,7 @@ from bot.utils.availability_summary import (
     get_week_suggested_dates,
 )
 from bot.utils.checks import is_admin
+from bot.utils.planning import get_target_week_label, get_target_week_start
 
 
 def setup_planning_commands(bot) -> None:
@@ -18,9 +19,11 @@ def setup_planning_commands(bot) -> None:
     )
     @is_admin()
     async def start_planning(interaction: discord.Interaction):
+        week_start = get_target_week_start(week_index=1)
+        week_label = get_target_week_label(week_start, 1).lower()
         embed = discord.Embed(
-            title="Start planning",
-            description="Choose the day when availability collection will close for week 1 at 23:59.",
+            title="🗓️ Start planning",
+            description=f"Choose the day when availability collection will close for {week_label} at 23:59. ⏳",
             color=discord.Color.orange(),
         )
 
@@ -39,8 +42,8 @@ def setup_planning_commands(bot) -> None:
         target_weeks = get_planning_target_weeks()
         if len(target_weeks) > 1:
             embed = discord.Embed(
-                title="Choose a planning week",
-                description="Pick the week you want to display and planify.",
+                title="🗓️ Choose a planning week",
+                description="Pick the week you want to display and planify. 📜",
                 color=discord.Color.blurple(),
             )
             await interaction.response.send_message(
@@ -54,6 +57,6 @@ def setup_planning_commands(bot) -> None:
         suggestions = get_week_suggested_dates(week_index)
         await interaction.response.send_message(
             embed=build_week_availability_summary_embed(week_index),
-            view=PlanningSelectionView(suggestions),
+            view=PlanningSelectionView(suggestions, week_index),
             ephemeral=True,
         )

@@ -13,8 +13,8 @@ def setup_profile_commands(bot) -> None:
 
         if not profile_data:
             embed = discord.Embed(
-                title="You are not registered yet",
-                description="Click the button below to create your DnD profile.",
+                title="🧾 You are not registered yet",
+                description="Click the button below to create your DnD profile. ✍️",
                 color=discord.Color.orange(),
             )
             await interaction.response.send_message(
@@ -25,12 +25,12 @@ def setup_profile_commands(bot) -> None:
             return
 
         embed = discord.Embed(
-            title=f"{interaction.user.display_name}'s Profile",
+            title=f"🧾 {interaction.user.display_name}'s Profile",
             color=discord.Color.blurple(),
         )
-        embed.add_field(name="Nickname", value=profile_data["nickname"], inline=False)
-        embed.add_field(name="Race", value=profile_data["race"], inline=False)
-        embed.add_field(name="Class", value=profile_data["class"], inline=False)
+        embed.add_field(name="🪪 Nickname", value=profile_data["nickname"], inline=False)
+        embed.add_field(name="🧬 Race", value=profile_data["race"], inline=False)
+        embed.add_field(name="⚔️ Class", value=profile_data["class"], inline=False)
 
         await interaction.response.send_message(
             embed=embed,

@@ -9,7 +9,12 @@ from bot.ui.availability_view import (
     build_player_availability_invite_embed,
     build_public_availability_embed,
 )
-from bot.utils.planning import get_upcoming_week_days
+from bot.utils.planning import (
+    get_deadline_days_before_target_week,
+    get_target_week_label,
+    get_target_week_start,
+    get_upcoming_week_days,
+)
 
 log = logging.getLogger("discord-bot")
 
@@ -23,6 +28,7 @@ class DeadlineButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         deadline = datetime.combine(self.day.date(), time(hour=23, minute=59))
+        week_1_label = _target_week_label(1)
 
         log.info(
             "Planning deadline chosen by user_id=%s as %s",
@@ -31,10 +37,10 @@ class DeadlineButton(discord.ui.Button):
         )
 
         embed = discord.Embed(
-            title="Choose planning weeks",
+            title="🗓️ Choose planning weeks",
             description=(
-                f"Week 1 deadline: **{deadline.strftime('%A %d/%m at %H:%M')}**\n"
-                "Choose whether players should fill one target week or two."
+                f"⏳ {week_1_label} deadline: **{deadline.strftime('%A %d/%m at %H:%M')}**\n"
+                "Choose whether players should fill one target week or two. 🎲"
             ),
             color=discord.Color.orange(),
         )
@@ -53,11 +59,13 @@ class WeekCountButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         if self.week_count == 2:
+            week_1_label = _target_week_label(1)
+            week_2_label = _target_week_label(2)
             embed = discord.Embed(
-                title="Choose week 2 deadline",
+                title=f"⏳ Choose {week_2_label} deadline",
                 description=(
-                    f"Week 1 deadline: **{self.deadline.strftime('%A %d/%m at %H:%M')}**\n"
-                    "Choose when availability collection closes for the week after."
+                    f"✅ {week_1_label} deadline: **{self.deadline.strftime('%A %d/%m at %H:%M')}**\n"
+                    "Choose when availability collection closes for the week after. 📅"
                 ),
                 color=discord.Color.orange(),
             )
@@ -98,7 +106,7 @@ class SecondWeekDeadlineView(discord.ui.View):
     def __init__(self, first_week_deadline: datetime):
         super().__init__(timeout=300)
 
-        for day in get_upcoming_week_days():
+        for day in get_deadline_days_before_target_week(2):
             self.add_item(SecondWeekDeadlineButton(day, first_week_deadline))
 
 
@@ -118,15 +126,14 @@ async def _start_planning(
     )
 
     deadlines_text = "\n".join(
-        f"Week {week_index}: **{week_deadline.strftime('%A %d/%m at %H:%M')}**"
+        f"{_target_week_label(week_index)}: **{week_deadline.strftime('%A %d/%m at %H:%M')}**"
         for week_index, week_deadline in sorted(week_deadlines.items())
     )
     embed = discord.Embed(
-        title="Planning started",
+        title="✅ Planning started",
         description=(
-            f"Availability collection is now open.\n"
-            f"{deadlines_text}\n"
-            f"Target weeks: **{week_count}**"
+            f"Availability collection is now open. 🎲\n"
+            f"{deadlines_text}"
         ),
         color=discord.Color.green(),
     )
@@ -163,6 +170,11 @@ class PlanningWeekCountView(discord.ui.View):
         super().__init__(timeout=300)
         self.add_item(WeekCountButton("Next week", 1, deadline))
         self.add_item(WeekCountButton("Next week + week after", 2, deadline))
+
+
+def _target_week_label(week_index: int) -> str:
+    week_start = get_target_week_start(week_index=week_index)
+    return get_target_week_label(week_start, week_index).lower()
 
 
 class PlanningDeadlineView(discord.ui.View):
