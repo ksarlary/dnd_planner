@@ -1,0 +1,147 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Length 2670 >>
+stream
+BT /F2 24 Tf 54.00 787.89 Td (Goblin Scheduler User Manual) Tj ET
+BT /F1 12 Tf 54.00 755.89 Td (A practical guide for players and admins) Tj ET
+BT /F2 16 Tf 54.00 715.89 Td (What The Bot Does) Tj ET
+BT /F1 10.5 Tf 54.00 691.89 Td (Goblin Scheduler helps organize DnD sessions by collecting player availability, helping) Tj ET
+BT /F1 10.5 Tf 54.00 677.89 Td (admins choose session dates, creating Discord server events, sending reminders, tracking) Tj ET
+BT /F1 10.5 Tf 54.00 663.89 Td (recap duty, and adding a healthy amount of calendar nonsense.) Tj ET
+BT /F2 16 Tf 54.00 630.89 Td (Player Commands) Tj ET
+BT /F2 13 Tf 54.00 600.89 Td (/profile) Tj ET
+BT /F1 10.5 Tf 54.00 580.89 Td (Shows your DnD player profile. If you are not registered yet, the bot shows a) Tj ET
+BT /F1 10.5 Tf 54.00 566.89 Td (registration button. A profile contains nickname, race, and class. You can edit your) Tj ET
+BT /F1 10.5 Tf 54.00 552.89 Td (profile from the profile view.) Tj ET
+BT /F2 13 Tf 54.00 523.89 Td (/excuse) Tj ET
+BT /F1 10.5 Tf 54.00 503.89 Td (Generates a totally valid fake reason why someone is unavailable. The response is visible) Tj ET
+BT /F1 10.5 Tf 54.00 489.89 Td (to everyone.) Tj ET
+BT /F2 13 Tf 54.00 460.89 Td (/fight opponent:@user) Tj ET
+BT /F1 10.5 Tf 54.00 440.89 Td (Starts a fake battle between you and another user. The bot randomly declares a winner.) Tj ET
+BT /F1 10.5 Tf 54.00 426.89 Td (The response is visible to everyone.) Tj ET
+BT /F2 13 Tf 54.00 397.89 Td (/spell) Tj ET
+BT /F1 10.5 Tf 54.00 377.89 Td (Casts a random ridiculous spell. The response is visible to everyone.) Tj ET
+BT /F2 13 Tf 54.00 348.89 Td (/curse target:@user) Tj ET
+BT /F1 10.5 Tf 54.00 328.89 Td (Curses someone lightly with a harmless DnD-flavored inconvenience. The response is) Tj ET
+BT /F1 10.5 Tf 54.00 314.89 Td (visible to everyone.) Tj ET
+BT /F2 16 Tf 54.00 281.89 Td (Availability System) Tj ET
+BT /F1 10.5 Tf 54.00 257.89 Td (When an admin starts planning, registered players receive a DM with a button to enter) Tj ET
+BT /F1 10.5 Tf 54.00 243.89 Td (availability. Players can also use the public planning message in the server. Only) Tj ET
+BT /F1 10.5 Tf 54.00 229.89 Td (registered players can enter availability.) Tj ET
+BT /F2 13 Tf 54.00 200.89 Td (Availability Options) Tj ET
+BT /F1 10.5 Tf 66.00 181.89 Td (- Unset: no answer yet) Tj ET
+BT /F1 10.5 Tf 66.00 164.89 Td (- Available: you can play) Tj ET
+BT /F1 10.5 Tf 66.00 147.89 Td (- Doubtful: maybe, but not guaranteed) Tj ET
+BT /F1 10.5 Tf 66.00 130.89 Td (- Unavailable: you cannot play) Tj ET
+BT /F2 13 Tf 54.00 102.89 Td (Available Time Slots) Tj ET
+BT /F1 10.5 Tf 66.00 83.89 Td (- Monday 20h) Tj ET
+endstream
+endobj
+4 0 obj
+<< /Length 2943 >>
+stream
+BT /F1 10.5 Tf 66.00 786.89 Td (- Tuesday 20h) Tj ET
+BT /F1 10.5 Tf 66.00 769.89 Td (- Wednesday 20h) Tj ET
+BT /F1 10.5 Tf 66.00 752.89 Td (- Thursday 20h) Tj ET
+BT /F1 10.5 Tf 66.00 735.89 Td (- Friday 20h) Tj ET
+BT /F1 10.5 Tf 66.00 718.89 Td (- Saturday 14h) Tj ET
+BT /F1 10.5 Tf 66.00 701.89 Td (- Saturday 20h) Tj ET
+BT /F1 10.5 Tf 66.00 684.89 Td (- Sunday 14h) Tj ET
+BT /F1 10.5 Tf 66.00 667.89 Td (- Sunday 20h) Tj ET
+BT /F2 13 Tf 54.00 639.89 Td (Notes) Tj ET
+BT /F1 10.5 Tf 54.00 619.89 Td (Players can add one note per planning week. If planning is open for two weeks, each week) Tj ET
+BT /F1 10.5 Tf 54.00 605.89 Td (has its own separate note.) Tj ET
+BT /F2 13 Tf 54.00 576.89 Td (Deadlines) Tj ET
+BT /F1 10.5 Tf 54.00 556.89 Td (Each planning week has its own deadline. After the deadline passes, players cannot modify) Tj ET
+BT /F1 10.5 Tf 54.00 542.89 Td (availability or notes for that week anymore.) Tj ET
+BT /F2 16 Tf 54.00 509.89 Td (Reminders) Tj ET
+BT /F1 10.5 Tf 54.00 485.89 Td (If a player has missing availability, the bot sends a reminder at 10:00. If a session is) Tj ET
+BT /F1 10.5 Tf 54.00 471.89 Td (planned, the bot sends a reminder the day before the session.) Tj ET
+BT /F2 16 Tf 54.00 438.89 Td (Admin Commands) Tj ET
+BT /F2 13 Tf 54.00 408.89 Td (/start_planning) Tj ET
+BT /F1 10.5 Tf 54.00 388.89 Td (Starts a new planning cycle. The admin chooses the deadline for the first target week,) Tj ET
+BT /F1 10.5 Tf 54.00 374.89 Td (chooses whether to plan only next week or also the week after, and if needed chooses a) Tj ET
+BT /F1 10.5 Tf 54.00 360.89 Td (separate deadline for the second target week. Players are then invited to enter) Tj ET
+BT /F1 10.5 Tf 54.00 346.89 Td (availability.) Tj ET
+BT /F2 13 Tf 54.00 317.89 Td (/availabilities) Tj ET
+BT /F1 10.5 Tf 54.00 297.89 Td (Shows the current planning summary. If multiple weeks are being planned, the admin first) Tj ET
+BT /F1 10.5 Tf 54.00 283.89 Td (chooses which week to display. The summary shows registered players, deadline, sure) Tj ET
+BT /F1 10.5 Tf 54.00 269.89 Td (dates, probable dates, each player availability, notes, selected sessions, and recap) Tj ET
+BT /F1 10.5 Tf 54.00 255.89 Td (player if already chosen.) Tj ET
+BT /F2 16 Tf 54.00 222.89 Td (Choosing Session Dates) Tj ET
+BT /F1 10.5 Tf 54.00 198.89 Td (After viewing availabilities, the admin can select up to two sessions for the chosen) Tj ET
+BT /F1 10.5 Tf 54.00 184.89 Td (week. Sure dates mean everyone is available. Probable dates mean everyone is either) Tj ET
+BT /F1 10.5 Tf 54.00 170.89 Td (available or doubtful.) Tj ET
+BT /F2 16 Tf 54.00 137.89 Td (Recap Duty) Tj ET
+BT /F1 10.5 Tf 54.00 113.89 Td (After choosing session dates, the admin chooses who will recap the previous session. The) Tj ET
+BT /F1 10.5 Tf 54.00 99.89 Td (bot displays the recap order: Sonia -> Shin -> Atouf -> Balico. It also shows who did the) Tj ET
+BT /F1 10.5 Tf 54.00 85.89 Td (last recap.) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Length 2069 >>
+stream
+BT /F1 10.5 Tf 54.00 785.89 Td (The chosen recap player is included in player DM announcements, the server announcement,) Tj ET
+BT /F1 10.5 Tf 54.00 771.89 Td (day-before reminders, and the admin summary.) Tj ET
+BT /F2 16 Tf 54.00 738.89 Td (No Session Option) Tj ET
+BT /F1 10.5 Tf 54.00 714.89 Td (The admin can choose No session on chosen week. When selected, previous sessions for that) Tj ET
+BT /F1 10.5 Tf 54.00 700.89 Td (week are cleared, created Discord events for that week are deleted, players are notified,) Tj ET
+BT /F1 10.5 Tf 54.00 686.89 Td (and the admin summary remembers that no session was selected.) Tj ET
+BT /F2 16 Tf 54.00 653.89 Td (Discord Events) Tj ET
+BT /F1 10.5 Tf 54.00 629.89 Td (When sessions are planned, the bot creates Discord server events and posts links to them) Tj ET
+BT /F1 10.5 Tf 54.00 615.89 Td (in the server channel. Event cover images are randomly picked from the event cover image) Tj ET
+BT /F1 10.5 Tf 54.00 601.89 Td (folder. When two sessions are created, the bot tries to use different images.) Tj ET
+BT /F2 16 Tf 54.00 568.89 Td (DMs) Tj ET
+BT /F1 10.5 Tf 54.00 544.89 Td (The bot sends DMs for planning invitations, missing availability reminders, session) Tj ET
+BT /F1 10.5 Tf 54.00 530.89 Td (announcements, no-session announcements, and day-before reminders. If someone does not) Tj ET
+BT /F1 10.5 Tf 54.00 516.89 Td (receive DMs, they may need to allow DMs from server members in Discord privacy settings.) Tj ET
+BT /F2 16 Tf 54.00 483.89 Td (Required Bot Permissions) Tj ET
+BT /F1 10.5 Tf 66.00 460.89 Td (- Send Messages) Tj ET
+BT /F1 10.5 Tf 66.00 443.89 Td (- Use Slash Commands) Tj ET
+BT /F1 10.5 Tf 66.00 426.89 Td (- Embed Links) Tj ET
+BT /F1 10.5 Tf 66.00 409.89 Td (- Create Events) Tj ET
+BT /F1 10.5 Tf 66.00 392.89 Td (- Manage Events) Tj ET
+BT /F2 16 Tf 54.00 360.89 Td (Admin Notes) Tj ET
+BT /F1 10.5 Tf 54.00 336.89 Td (Planning and cancelling sessions should be done from the Discord server, not from a DM,) Tj ET
+BT /F1 10.5 Tf 54.00 322.89 Td (because server events require server context.) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 9 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 3 0 R >>
+endobj
+7 0 obj
+<< /Type /Page /Parent 9 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 4 0 R >>
+endobj
+8 0 obj
+<< /Type /Page /Parent 9 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 5 0 R >>
+endobj
+9 0 obj
+<< /Type /Pages /Kids [6 0 R 7 0 R 8 0 R] /Count 3 >>
+endobj
+10 0 obj
+<< /Type /Catalog /Pages 9 0 R >>
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000009 00000 n 
+0000000079 00000 n 
+0000000154 00000 n 
+0000002876 00000 n 
+0000005871 00000 n 
+0000007992 00000 n 
+0000008134 00000 n 
+0000008276 00000 n 
+0000008418 00000 n 
+0000008487 00000 n 
+trailer
+<< /Size 11 /Root 10 0 R >>
+startxref
+8537
+%%EOF

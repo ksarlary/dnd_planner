@@ -3,6 +3,8 @@ import random
 import discord
 from discord import app_commands
 
+from bot.storage.profiles import get_profile
+
 
 EXCUSES = [
     "The {label} is stuck in a time loop again.",
@@ -54,29 +56,11 @@ CURSES = [
     "Your battle plan will work, but only after everyone ignores it.",
 ]
 
-EXCUSE_LABELS = [
-    "wizard",
-    "rogue",
-    "cleric",
-    "bard",
-    "fighter",
-    "druid",
-    "barbarian",
-    "paladin",
-    "ranger",
-    "warlock",
-    "sorcerer",
-    "monk",
-    "party face",
-    "dice goblin",
-    "snack guardian",
-]
-
 
 def setup_fun_commands(bot) -> None:
     @bot.tree.command(name="excuse", description="Generate a totally valid excuse")
     async def excuse(interaction: discord.Interaction):
-        label = random.choice(EXCUSE_LABELS)
+        label = _get_excuse_label(interaction.user.id)
         excuse_text = random.choice(EXCUSES).format(label=label)
         await interaction.response.send_message(f"📜 {excuse_text}")
 
@@ -104,3 +88,11 @@ def setup_fun_commands(bot) -> None:
         await interaction.response.send_message(
             f"🔮 {target.mention}, {random.choice(CURSES)}"
         )
+
+
+def _get_excuse_label(user_id: int) -> str:
+    profile = get_profile(user_id)
+    if profile is None:
+        return "unimportant NPC"
+
+    return random.choice([profile["race"], profile["class"]]).lower()
