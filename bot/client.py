@@ -5,6 +5,7 @@ from bot.errors import setup_error_handler
 from bot.tasks import setup_tasks
 from bot.commands.basic import setup_basic_commands
 from bot.commands.profile import setup_profile_commands
+from bot.commands.notifications import setup_notification_commands
 from bot.commands.admin import setup_admin_commands
 from bot.commands.planning import setup_planning_commands
 from bot.storage.db import init_db
@@ -36,6 +37,9 @@ class Bot(commands.Bot):
 
         setup_profile_commands(self)
         log.info("profile commands loaded")
+
+        setup_notification_commands(self)
+        log.info("notification commands loaded")
 
         setup_admin_commands(self)
         log.info("admin commands loaded")

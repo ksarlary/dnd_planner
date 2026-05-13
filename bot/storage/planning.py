@@ -21,6 +21,7 @@ def set_planning_deadline(deadline: datetime) -> None:
         )
         conn.execute("DELETE FROM planning_availabilities")
         conn.execute("DELETE FROM planning_notes")
+        conn.execute("DELETE FROM planning_selected_slots")
 
 
 def get_planning_deadline() -> datetime | None:
@@ -143,3 +144,182 @@ def save_user_availability_note(user_id: int, note: str) -> bool:
             (user_id, note),
         )
         return True
+
+
+def get_registered_players() -> list[dict]:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            rows = cur.execute(
+                """
+                SELECT
+                    user_id,
+                    nickname,
+                    race,
+                    player_class AS class
+                FROM profiles
+                ORDER BY LOWER(nickname)
+                """
+            ).fetchall()
+
+    return [dict(row) for row in rows]
+
+
+def get_all_availabilities() -> dict[int, dict[str, str]]:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            rows = cur.execute(
+                """
+                SELECT user_id, slot_key, status
+                FROM planning_availabilities
+                """
+            ).fetchall()
+
+    availabilities: dict[int, dict[str, str]] = {}
+    for row in rows:
+        availabilities.setdefault(row["user_id"], {})[row["slot_key"]] = row["status"]
+
+    return availabilities
+
+
+def get_all_availability_notes() -> dict[int, str]:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            rows = cur.execute(
+                """
+                SELECT user_id, note
+                FROM planning_notes
+                """
+            ).fetchall()
+
+    return {row["user_id"]: row["note"] for row in rows}
+
+
+def set_selected_planning_slot(
+    slot_key: str,
+    slot_label: str,
+    manual_override: bool = False,
+) -> None:
+    with get_connection() as conn:
+        existing = conn.execute(
+            """
+            SELECT recap_user_id, recap_nickname
+            FROM planning_selected_slots
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+        conn.execute("DELETE FROM planning_selected_slots")
+        conn.execute(
+            """
+            INSERT INTO planning_selected_slots (
+                slot_key,
+                slot_label,
+                manual_override,
+                recap_user_id,
+                recap_nickname
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (
+                slot_key,
+                slot_label,
+                manual_override,
+                existing[0] if existing else None,
+                existing[1] if existing else None,
+            ),
+        )
+
+
+def get_selected_planning_slot() -> dict | None:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            row = cur.execute(
+                """
+                SELECT
+                    slot_key,
+                    slot_label,
+                    manual_override,
+                    recap_user_id,
+                    recap_nickname,
+                    created_at
+                FROM planning_selected_slots
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+    return dict(row) if row else None
+
+
+def set_planning_recap_player(user_id: int, nickname: str) -> bool:
+    with get_connection() as conn:
+        selected = conn.execute(
+            """
+            SELECT slot_key, slot_label
+            FROM planning_selected_slots
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        if selected is None:
+            return False
+
+        cursor = conn.execute(
+            """
+            UPDATE planning_selected_slots
+            SET recap_user_id = %s,
+                recap_nickname = %s
+            """,
+            (user_id, nickname),
+        )
+        updated = cursor.rowcount > 0
+
+        if updated:
+            conn.execute(
+                """
+                INSERT INTO planning_recap_history (
+                    user_id,
+                    nickname,
+                    slot_key,
+                    slot_label
+                )
+                VALUES (%s, %s, %s, %s)
+                """,
+                (user_id, nickname, selected[0], selected[1]),
+            )
+
+    return updated
+
+
+def get_last_recap_player(
+    exclude_slot_label: str | None = None,
+    exclude_user_id: int | None = None,
+) -> dict | None:
+    params = []
+    filters = []
+
+    if exclude_slot_label is not None:
+        filters.append("(slot_label IS DISTINCT FROM %s)")
+        params.append(exclude_slot_label)
+
+    if exclude_user_id is not None:
+        filters.append("(user_id IS DISTINCT FROM %s)")
+        params.append(exclude_user_id)
+
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            row = cur.execute(
+                f"""
+                SELECT user_id, nickname, slot_key, slot_label, created_at
+                FROM planning_recap_history
+                {where_clause}
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                params,
+            ).fetchone()
+
+    return dict(row) if row else None
