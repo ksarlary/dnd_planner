@@ -164,14 +164,15 @@ def mark_planning_week_notification_sent(week_index: int) -> None:
 
 def set_selected_planning_slots(
     slots: list[dict],
-    recap_player: dict | None = None,
+    recap_players: list[dict] | dict | None = None,
 ) -> None:
     limited_slots = slots[:2]
     week_prefix = None
     if limited_slots:
         week_prefix = limited_slots[0]["slot_key"].split(":", maxsplit=1)[0]
-    recap_user_id = recap_player["user_id"] if recap_player else None
-    recap_nickname = recap_player["nickname"] if recap_player else None
+    if isinstance(recap_players, dict):
+        recap_players = [recap_players for slot in limited_slots]
+    recap_players = recap_players or []
 
     with get_connection() as conn:
         if week_prefix:
@@ -186,6 +187,11 @@ def set_selected_planning_slots(
             conn.execute("DELETE FROM planning_selected_slots")
 
         for position, slot in enumerate(limited_slots, start=1):
+            recap_player = (
+                recap_players[position - 1]
+                if position - 1 < len(recap_players)
+                else None
+            )
             conn.execute(
                 """
                 INSERT INTO planning_selected_slots (
@@ -208,8 +214,8 @@ def set_selected_planning_slots(
                     slot["session_datetime"],
                     slot["guild_id"],
                     slot.get("event_id"),
-                    recap_user_id,
-                    recap_nickname,
+                    recap_player["user_id"] if recap_player else None,
+                    recap_player["nickname"] if recap_player else None,
                 ),
             )
 
@@ -295,7 +301,7 @@ def get_selected_planning_slots(week_index: int | None = None) -> list[dict]:
                     reminder_sent_at
                 FROM planning_selected_slots
                 {where_clause}
-                ORDER BY position
+                ORDER BY session_datetime NULLS LAST, position
                 """,
                 params,
             ).fetchall()
@@ -378,48 +384,46 @@ def get_last_recap_player() -> dict | None:
     return dict(row) if row else None
 
 
-def update_planning_recap_player(week_index: int, player: dict) -> bool:
+def update_planning_recap_players(assignments: list[dict]) -> bool:
     with get_connection() as conn:
-        rows = conn.execute(
-            """
-            SELECT slot_key, slot_label
-            FROM planning_selected_slots
-            WHERE slot_key LIKE %s
-            ORDER BY position
-            """,
-            (f"week_{week_index}:%",),
-        ).fetchall()
-        if not rows:
-            return False
+        updated = False
+        for assignment in assignments:
+            player = assignment["player"]
+            slot_key = assignment["slot_key"]
+            slot_label = assignment["slot_label"]
 
-        conn.execute(
-            """
-            UPDATE planning_selected_slots
-            SET recap_user_id = %s,
-                recap_nickname = %s
-            WHERE slot_key LIKE %s
-            """,
-            (player["user_id"], player["nickname"], f"week_{week_index}:%"),
-        )
-        conn.execute(
-            """
-            INSERT INTO planning_recap_history (
-                user_id,
-                nickname,
-                slot_key,
-                slot_label
+            cursor = conn.execute(
+                """
+                UPDATE planning_selected_slots
+                SET recap_user_id = %s,
+                    recap_nickname = %s
+                WHERE slot_key = %s
+                """,
+                (player["user_id"], player["nickname"], slot_key),
             )
-            VALUES (%s, %s, %s, %s)
-            """,
-            (
-                player["user_id"],
-                player["nickname"],
-                rows[0][0],
-                rows[0][1],
-            ),
-        )
+            if cursor.rowcount == 0:
+                continue
 
-    return True
+            updated = True
+            conn.execute(
+                """
+                INSERT INTO planning_recap_history (
+                    user_id,
+                    nickname,
+                    slot_key,
+                    slot_label
+                )
+                VALUES (%s, %s, %s, %s)
+                """,
+                (
+                    player["user_id"],
+                    player["nickname"],
+                    slot_key,
+                    slot_label,
+                ),
+            )
+
+    return updated
 
 
 def is_planning_open(

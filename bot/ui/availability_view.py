@@ -113,6 +113,7 @@ def build_sessions_planned_embed(
     session_labels: list[str],
     taunt: str | None = None,
     recap_nickname: str | None = None,
+    session_recaps: list[tuple[str, str]] | None = None,
 ) -> discord.Embed:
     embed = discord.Embed(
         title="🎲 Sessions planned",
@@ -127,7 +128,16 @@ def build_sessions_planned_embed(
         value="\n".join(f"- {label}" for label in session_labels),
         inline=False,
     )
-    if recap_nickname:
+    if session_recaps:
+        embed.add_field(
+            name="📜 Previous session recap",
+            value="\n".join(
+                f"**{label}**: {nickname}"
+                for label, nickname in session_recaps
+            ),
+            inline=False,
+        )
+    elif recap_nickname:
         embed.add_field(
             name="📜 Previous session recap",
             value=f"{recap_nickname} is on recap duty.",

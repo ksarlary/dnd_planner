@@ -183,13 +183,13 @@ def _build_description(
 
     selected_slots = get_selected_planning_slots(week_index)
     if selected_slots:
-        selected_labels = ", ".join(
-            selected_slot["slot_label"]
+        selected_labels = "\n".join(
+            _format_selected_slot(selected_slot)
             for selected_slot in selected_slots
         )
         lines.append(f"📅 Selected dates: **{selected_labels}**")
         recap_nickname = selected_slots[0].get("recap_nickname")
-        if recap_nickname:
+        if False and recap_nickname:
             lines.append(f"📜 Recap: **{recap_nickname}**")
     else:
         target_week = get_planning_week(week_index)
@@ -197,6 +197,14 @@ def _build_description(
             lines.append("🛌 Selected dates: **No session on this week**")
 
     return "\n".join(lines)
+
+
+def _format_selected_slot(selected_slot: dict) -> str:
+    recap_nickname = selected_slot.get("recap_nickname")
+    if recap_nickname:
+        return f"- **{selected_slot['slot_label']}** - recap: **{recap_nickname}**"
+
+    return f"- **{selected_slot['slot_label']}**"
 
 
 def _format_sure_dates(suggestions: list[SuggestedDate]) -> str:

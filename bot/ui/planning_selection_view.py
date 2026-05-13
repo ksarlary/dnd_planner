@@ -12,7 +12,7 @@ from bot.storage.planning import (
     record_recap_player,
     set_selected_planning_slots,
     set_no_session_for_week,
-    update_planning_recap_player,
+    update_planning_recap_players,
 )
 from bot.ui.availability_view import (
     build_no_session_planned_embed,
@@ -51,8 +51,8 @@ class PlanningSelectionView(discord.ui.View):
             self.add_item(PlanningSelectionSelect(suggestions))
         self.add_item(ManualPlanningSelectionSelect(list(self.manual_dates_by_key.values())))
         self.add_item(NoSessionButton(week_index))
-        if get_selected_planning_slots(week_index):
-            self.add_item(UpdateRecapSelect(week_index))
+        for selected_slot in get_selected_planning_slots(week_index):
+            self.add_item(UpdateRecapSelect(week_index, selected_slot))
 
 
 class PlanningSelectionSelect(discord.ui.Select):
@@ -98,9 +98,19 @@ class PlanningSelectionSelect(discord.ui.Select):
             )
             return
 
-        await interaction.response.edit_message(
-            embed=_build_recap_selection_embed(suggestions),
-            view=RecapSelectionView(suggestions),
+        recap_players = _get_next_recap_players(players, len(suggestions))
+        if not recap_players:
+            await interaction.response.send_message(
+                "No registered player matches the recap rotation.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await _save_selected_sessions(
+            interaction,
+            suggestions,
+            recap_players,
         )
 
 
@@ -146,9 +156,20 @@ class ManualPlanningSelectionSelect(discord.ui.Select):
             )
             return
 
-        await interaction.response.edit_message(
-            embed=_build_recap_selection_embed(suggestions, manual_override=True),
-            view=RecapSelectionView(suggestions),
+        recap_players = _get_next_recap_players(get_registered_players(), len(suggestions))
+        if not recap_players:
+            await interaction.response.send_message(
+                "No registered player matches the recap rotation.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await _save_selected_sessions(
+            interaction,
+            suggestions,
+            recap_players,
+            manual_override=True,
         )
 
 
@@ -280,8 +301,9 @@ class RecapSelectionSelect(discord.ui.Select):
 
 
 class UpdateRecapSelect(discord.ui.Select):
-    def __init__(self, week_index: int):
+    def __init__(self, week_index: int, selected_slot: dict):
         self.week_index = week_index
+        self.slot_key = selected_slot["slot_key"]
         players = _sort_players_for_recap(get_registered_players())
         options = [
             discord.SelectOption(
@@ -296,7 +318,7 @@ class UpdateRecapSelect(discord.ui.Select):
         ]
 
         super().__init__(
-            placeholder="Modify recap duty",
+            placeholder=f"Modify recap for {selected_slot['slot_label'][:70]}",
             min_values=1,
             max_values=1,
             options=options,
@@ -319,16 +341,46 @@ class UpdateRecapSelect(discord.ui.Select):
             )
             return
 
-        if not update_planning_recap_player(self.week_index, recap_player):
+        selected_slots = get_selected_planning_slots()
+        selected_index = next(
+            (
+                index
+                for index, selected_slot in enumerate(selected_slots)
+                if selected_slot["slot_key"] == self.slot_key
+            ),
+            None,
+        )
+        if selected_index is None:
             await interaction.response.send_message(
-                "Plan a session for this week before changing recap duty.",
+                "That planned session no longer exists.",
+                ephemeral=True,
+            )
+            return
+
+        cascade_slots = selected_slots[selected_index:]
+        cascade_players = _get_recap_players_from(recap_player, players, len(cascade_slots))
+        assignments = [
+            {
+                "slot_key": selected_slot["slot_key"],
+                "slot_label": selected_slot["slot_label"],
+                "player": cascade_players[index],
+            }
+            for index, selected_slot in enumerate(cascade_slots)
+        ]
+        if not update_planning_recap_players(assignments):
+            await interaction.response.send_message(
+                "Plan a session before changing recap duty.",
                 ephemeral=True,
             )
             return
 
         if interaction.channel is not None:
+            updated_lines = "\n".join(
+                f"- **{assignment['slot_label']}**: {assignment['player']['nickname']}"
+                for assignment in assignments
+            )
             await interaction.channel.send(
-                f"📜 Recap duty updated: **{recap_player['nickname']}** will handle the previous-session recap."
+                f"📜 Recap duty updated:\n{updated_lines}"
             )
 
         await interaction.response.edit_message(
@@ -427,13 +479,111 @@ async def _delete_previous_events(guild: discord.Guild, week_index: int) -> None
             log.exception("Failed to delete previous scheduled event_id=%s", event_id)
 
 
+async def _save_selected_sessions(
+    interaction: discord.Interaction,
+    suggestions: list[SuggestedDate],
+    recap_players: list[dict],
+    manual_override: bool = False,
+) -> None:
+    if interaction.guild is None:
+        await interaction.followup.send(
+            "Session dates must be selected from the server so events can be created.",
+            ephemeral=True,
+        )
+        return
+
+    week_index = _slot_week_index(suggestions[0].slot_key)
+    await _delete_previous_events(interaction.guild, week_index)
+    event_cover_paths = get_random_event_cover_paths(len(suggestions))
+
+    selected_slots = []
+    created_events = []
+    for index, suggestion in enumerate(suggestions):
+        event_cover = (
+            read_event_cover(event_cover_paths[index])
+            if event_cover_paths
+            else None
+        )
+        event = await _create_scheduled_event(
+            interaction.guild,
+            suggestion,
+            event_cover,
+        )
+        selected_slots.append(
+            {
+                "slot_key": suggestion.slot_key,
+                "slot_label": suggestion.label,
+                "session_datetime": suggestion.session_datetime,
+                "guild_id": interaction.guild.id,
+                "event_id": event.id if event else None,
+            }
+        )
+        if event:
+            created_events.append(
+                (
+                    suggestion.label,
+                    f"https://discord.com/events/{interaction.guild.id}/{event.id}",
+                )
+            )
+
+    set_selected_planning_slots(selected_slots, recap_players)
+    for index, recap_player in enumerate(recap_players[: len(selected_slots)]):
+        record_recap_player(recap_player, selected_slots[index])
+    selected_labels = "\n".join(
+        f"- {suggestion.label}"
+        for suggestion in suggestions
+    )
+    session_recaps = [
+        (selected_slot["slot_label"], recap_players[index]["nickname"])
+        for index, selected_slot in enumerate(selected_slots)
+        if index < len(recap_players)
+    ]
+    taunt = (
+        build_low_availability_taunt(week_index)
+        if len(suggestions) == 1
+        else None
+    )
+    await _notify_registered_players(
+        interaction.client,
+        [s.label for s in suggestions],
+        taunt,
+        session_recaps,
+    )
+    if interaction.channel is not None and created_events:
+        await _post_event_links(
+            interaction.channel,
+            created_events,
+            taunt,
+            session_recaps,
+        )
+
+    assignment_mode = "Auto recap"
+    recap_lines = "\n".join(
+        f"- {label}: {nickname}"
+        for label, nickname in session_recaps
+    )
+    await interaction.followup.send(
+        f"âœ… Session date{'s' if len(suggestions) > 1 else ''} saved:\n"
+        f"{selected_labels}\n"
+        f"ðŸ“œ {assignment_mode}:\n{recap_lines}",
+        ephemeral=True,
+    )
+
+
 async def _notify_registered_players(
     client: discord.Client,
     session_labels: list[str],
     taunt: str | None = None,
-    recap_nickname: str | None = None,
+    session_recaps: list[tuple[str, str]] | str | None = None,
 ) -> None:
-    embed = build_sessions_planned_embed(session_labels, taunt, recap_nickname)
+    if isinstance(session_recaps, str):
+        session_recaps = [(label, session_recaps) for label in session_labels]
+
+    embed = build_sessions_planned_embed(
+        session_labels,
+        taunt,
+        session_recaps=session_recaps,
+    )
 
     for player in get_registered_players():
         user_id = player["user_id"]
@@ -464,8 +614,11 @@ async def _post_event_links(
     channel: discord.abc.Messageable,
     created_events: list[tuple[str, str]],
     taunt: str | None = None,
-    recap_nickname: str | None = None,
+    session_recaps: list[tuple[str, str]] | str | None = None,
 ) -> None:
+    if isinstance(session_recaps, str):
+        session_recaps = [(label, session_recaps) for label, event_url in created_events]
+
     lines = [
         f"- **{label}**: {event_url}"
         for label, event_url in created_events
@@ -473,8 +626,13 @@ async def _post_event_links(
     if taunt:
         lines.append("")
         lines.append(f"🪶 Calendar blame: {taunt}")
-    if recap_nickname:
-        lines.append(f"📜 Recap: {recap_nickname}")
+    if session_recaps:
+        lines.append("")
+        lines.append("📜 Recap duty:")
+        lines.extend(
+            f"- **{label}**: {nickname}"
+            for label, nickname in session_recaps
+        )
     await channel.send("🎲 Scheduled sessions:\n" + "\n".join(lines))
 
 
@@ -567,3 +725,96 @@ def _sort_players_for_recap(players: list[dict]) -> list[dict]:
             player["nickname"].lower(),
         ),
     )
+
+
+def _get_next_recap_players(players: list[dict], count: int) -> list[dict]:
+    sorted_players = _sort_players_for_recap(players)
+    if not sorted_players:
+        return []
+
+    players_by_name = {
+        player["nickname"].lower(): player
+        for player in sorted_players
+    }
+    rotation_names = [
+        nickname.strip().lower()
+        for nickname in RECAP_ROTATION.split("->")
+    ]
+    available_rotation_names = [
+        nickname
+        for nickname in rotation_names
+        if nickname in players_by_name
+    ]
+
+    if not available_rotation_names:
+        return [
+            sorted_players[index % len(sorted_players)]
+            for index in range(count)
+        ]
+
+    last_recap_player = get_last_recap_player()
+    if not last_recap_player:
+        return _get_recap_players_from(
+            players_by_name[available_rotation_names[0]],
+            players,
+            count,
+        )
+
+    last_name = last_recap_player["nickname"].lower()
+    if last_name not in rotation_names:
+        return _get_recap_players_from(
+            players_by_name[available_rotation_names[0]],
+            players,
+            count,
+        )
+
+    last_index = rotation_names.index(last_name)
+    for offset in range(1, len(rotation_names) + 1):
+        candidate_name = rotation_names[(last_index + offset) % len(rotation_names)]
+        if candidate_name in players_by_name:
+            return _get_recap_players_from(players_by_name[candidate_name], players, count)
+
+    return _get_recap_players_from(players_by_name[available_rotation_names[0]], players, count)
+
+
+def _get_recap_players_from(
+    first_player: dict,
+    players: list[dict],
+    count: int,
+) -> list[dict]:
+    if count <= 0:
+        return []
+
+    sorted_players = _sort_players_for_recap(players)
+    players_by_name = {
+        player["nickname"].lower(): player
+        for player in sorted_players
+    }
+    rotation_names = [
+        nickname.strip().lower()
+        for nickname in RECAP_ROTATION.split("->")
+    ]
+
+    first_name = first_player["nickname"].lower()
+    if first_name not in rotation_names:
+        return [
+            sorted_players[index % len(sorted_players)]
+            for index in range(count)
+        ]
+
+    recap_players = []
+    first_index = rotation_names.index(first_name)
+    offset = 0
+    while len(recap_players) < count and offset < len(rotation_names) * count:
+        candidate_name = rotation_names[(first_index + offset) % len(rotation_names)]
+        if candidate_name in players_by_name:
+            recap_players.append(players_by_name[candidate_name])
+        offset += 1
+
+    if recap_players:
+        return recap_players
+
+    return [
+        sorted_players[index % len(sorted_players)]
+        for index in range(count)
+    ]
