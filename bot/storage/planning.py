@@ -342,14 +342,24 @@ def mark_session_day_before_reminder_sent(slot_key: str) -> None:
         )
 
 
-def record_recap_player(player: dict) -> None:
+def record_recap_player(player: dict, slot: dict | None = None) -> None:
     with get_connection() as conn:
         conn.execute(
             """
-            INSERT INTO planning_recap_history (user_id, nickname)
-            VALUES (%s, %s)
+            INSERT INTO planning_recap_history (
+                user_id,
+                nickname,
+                slot_key,
+                slot_label
+            )
+            VALUES (%s, %s, %s, %s)
             """,
-            (player["user_id"], player["nickname"]),
+            (
+                player["user_id"],
+                player["nickname"],
+                slot["slot_key"] if slot else None,
+                slot["slot_label"] if slot else None,
+            ),
         )
 
 
@@ -358,7 +368,7 @@ def get_last_recap_player() -> dict | None:
         with conn.cursor(row_factory=dict_row) as cur:
             row = cur.execute(
                 """
-                SELECT user_id, nickname, created_at
+                SELECT user_id, nickname, slot_key, slot_label, created_at
                 FROM planning_recap_history
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
@@ -366,6 +376,50 @@ def get_last_recap_player() -> dict | None:
             ).fetchone()
 
     return dict(row) if row else None
+
+
+def update_planning_recap_player(week_index: int, player: dict) -> bool:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT slot_key, slot_label
+            FROM planning_selected_slots
+            WHERE slot_key LIKE %s
+            ORDER BY position
+            """,
+            (f"week_{week_index}:%",),
+        ).fetchall()
+        if not rows:
+            return False
+
+        conn.execute(
+            """
+            UPDATE planning_selected_slots
+            SET recap_user_id = %s,
+                recap_nickname = %s
+            WHERE slot_key LIKE %s
+            """,
+            (player["user_id"], player["nickname"], f"week_{week_index}:%"),
+        )
+        conn.execute(
+            """
+            INSERT INTO planning_recap_history (
+                user_id,
+                nickname,
+                slot_key,
+                slot_label
+            )
+            VALUES (%s, %s, %s, %s)
+            """,
+            (
+                player["user_id"],
+                player["nickname"],
+                rows[0][0],
+                rows[0][1],
+            ),
+        )
+
+    return True
 
 
 def is_planning_open(

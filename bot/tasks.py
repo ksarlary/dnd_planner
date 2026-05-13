@@ -23,6 +23,10 @@ from bot.ui.availability_view import (
     build_session_day_before_reminder_embed,
 )
 from bot.utils.availability_summary import build_week_availability_summary_embed
+from bot.utils.notifications import (
+    send_availability_reminder_dm,
+    send_session_reminder_dm,
+)
 from bot.utils.planning import get_availability_slots
 from bot.utils.time import now
 from bot.utils.utils import STATUSES
@@ -119,22 +123,18 @@ def setup_tasks(bot) -> None:
                     if slot_key in slot_labels
                 ]
 
-                try:
-                    user = bot.get_user(user_id) or await bot.fetch_user(user_id)
-                    await user.send(
+                await send_availability_reminder_dm(
+                    bot,
+                    user_id,
+                    lambda user, deadline=deadline, missing_labels=missing_labels: user.send(
                         embed=build_missing_availability_reminder_embed(
                             deadline,
                             missing_labels,
                         ),
                         view=PublicAvailabilityView(),
-                    )
-                except Exception:
-                    log.exception(
-                        "Failed to send availability reminder to user_id=%s",
-                        user_id,
-                    )
-                finally:
-                    mark_planning_reminder_sent(user_id, reminder_date)
+                    ),
+                )
+                mark_planning_reminder_sent(user_id, reminder_date)
         except Exception:
             log.exception("remind_players_about_missing_availabilities failed")
 
@@ -166,14 +166,11 @@ def setup_tasks(bot) -> None:
                 )
                 for player in players:
                     user_id = player["user_id"]
-                    try:
-                        user = bot.get_user(user_id) or await bot.fetch_user(user_id)
-                        await user.send(embed=embed)
-                    except Exception:
-                        log.exception(
-                            "Failed to send session reminder to user_id=%s",
-                            user_id,
-                        )
+                    await send_session_reminder_dm(
+                        bot,
+                        user_id,
+                        lambda user, embed=embed: user.send(embed=embed),
+                    )
 
                 mark_session_day_before_reminder_sent(session["slot_key"])
         except Exception:

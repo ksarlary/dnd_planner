@@ -5,20 +5,28 @@ import discord
 
 from bot.storage.planning import (
     get_last_recap_player,
+    get_planning_started_at,
     get_planning_week,
     get_registered_players,
     get_selected_planning_slots,
     record_recap_player,
     set_selected_planning_slots,
     set_no_session_for_week,
+    update_planning_recap_player,
 )
 from bot.ui.availability_view import (
     build_no_session_planned_embed,
     build_sessions_planned_embed,
 )
-from bot.utils.availability_summary import SuggestedDate
+from bot.utils.availability_summary import (
+    SuggestedDate,
+    build_week_availability_summary_embed,
+    get_week_suggested_dates,
+)
 from bot.utils.availability_taunts import build_low_availability_taunt
 from bot.utils.event_covers import get_random_event_cover_paths, read_event_cover
+from bot.utils.notifications import send_planned_session_message_dm
+from bot.utils.planning import get_availability_slot_details
 from bot.utils.time import as_app_timezone
 
 log = logging.getLogger("discord-bot")
@@ -34,10 +42,17 @@ class PlanningSelectionView(discord.ui.View):
             suggestion.slot_key: suggestion
             for suggestion in suggestions
         }
+        self.manual_dates_by_key = {
+            suggestion.slot_key: suggestion
+            for suggestion in _build_manual_dates(week_index)
+        }
 
         if suggestions:
             self.add_item(PlanningSelectionSelect(suggestions))
+        self.add_item(ManualPlanningSelectionSelect(list(self.manual_dates_by_key.values())))
         self.add_item(NoSessionButton(week_index))
+        if get_selected_planning_slots(week_index):
+            self.add_item(UpdateRecapSelect(week_index))
 
 
 class PlanningSelectionSelect(discord.ui.Select):
@@ -89,6 +104,54 @@ class PlanningSelectionSelect(discord.ui.Select):
         )
 
 
+class ManualPlanningSelectionSelect(discord.ui.Select):
+    def __init__(self, dates: list[SuggestedDate]):
+        options = [
+            discord.SelectOption(
+                label=suggestion.label,
+                value=suggestion.slot_key,
+                description="Conflicted/manual date override",
+                emoji="⚠️",
+            )
+            for suggestion in dates[:25]
+        ]
+
+        super().__init__(
+            placeholder="Pick conflicted dates manually",
+            min_values=1,
+            max_values=min(2, len(options)),
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        view = self.view
+        if not isinstance(view, PlanningSelectionView):
+            return
+
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "Session dates must be selected from the server so events can be created.",
+                ephemeral=True,
+            )
+            return
+
+        suggestions = [
+            view.manual_dates_by_key[slot_key]
+            for slot_key in self.values
+        ]
+        if not get_registered_players():
+            await interaction.response.send_message(
+                "No registered players found for recap duty.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.edit_message(
+            embed=_build_recap_selection_embed(suggestions, manual_override=True),
+            view=RecapSelectionView(suggestions),
+        )
+
+
 class RecapSelectionView(discord.ui.View):
     def __init__(self, suggestions: list[SuggestedDate]):
         super().__init__(timeout=300)
@@ -98,7 +161,7 @@ class RecapSelectionView(discord.ui.View):
 
 class RecapSelectionSelect(discord.ui.Select):
     def __init__(self):
-        players = get_registered_players()
+        players = _sort_players_for_recap(get_registered_players())
         options = [
             discord.SelectOption(
                 label=player["nickname"],
@@ -184,7 +247,7 @@ class RecapSelectionSelect(discord.ui.Select):
                 )
 
         set_selected_planning_slots(selected_slots, recap_player)
-        record_recap_player(recap_player)
+        record_recap_player(recap_player, selected_slots[0] if selected_slots else None)
         selected_labels = "\n".join(
             f"- {suggestion.label}"
             for suggestion in suggestions
@@ -213,6 +276,67 @@ class RecapSelectionSelect(discord.ui.Select):
             f"{selected_labels}\n"
             f"📜 Recap: {recap_player['nickname']}",
             ephemeral=True,
+        )
+
+
+class UpdateRecapSelect(discord.ui.Select):
+    def __init__(self, week_index: int):
+        self.week_index = week_index
+        players = _sort_players_for_recap(get_registered_players())
+        options = [
+            discord.SelectOption(
+                label=player["nickname"],
+                value=str(player["user_id"]),
+                description=_truncate_option_description(
+                    f"{player['race']} {player['class']}"
+                ),
+                emoji="📜",
+            )
+            for player in players[:25]
+        ]
+
+        super().__init__(
+            placeholder="Modify recap duty",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        players = get_registered_players()
+        recap_player = next(
+            (
+                player
+                for player in players
+                if str(player["user_id"]) == self.values[0]
+            ),
+            None,
+        )
+        if recap_player is None:
+            await interaction.response.send_message(
+                "That recap player is no longer registered.",
+                ephemeral=True,
+            )
+            return
+
+        if not update_planning_recap_player(self.week_index, recap_player):
+            await interaction.response.send_message(
+                "Plan a session for this week before changing recap duty.",
+                ephemeral=True,
+            )
+            return
+
+        if interaction.channel is not None:
+            await interaction.channel.send(
+                f"📜 Recap duty updated: **{recap_player['nickname']}** will handle the previous-session recap."
+            )
+
+        await interaction.response.edit_message(
+            embed=build_week_availability_summary_embed(self.week_index),
+            view=PlanningSelectionView(
+                get_week_suggested_dates(self.week_index),
+                self.week_index,
+            ),
         )
 
 
@@ -313,11 +437,11 @@ async def _notify_registered_players(
 
     for player in get_registered_players():
         user_id = player["user_id"]
-        try:
-            user = client.get_user(user_id) or await client.fetch_user(user_id)
-            await user.send(embed=embed)
-        except Exception:
-            log.exception("Failed to send session notification to user_id=%s", user_id)
+        await send_planned_session_message_dm(
+            client,
+            user_id,
+            lambda user, embed=embed: user.send(embed=embed),
+        )
 
 
 async def _notify_registered_players_no_session(
@@ -329,11 +453,11 @@ async def _notify_registered_players_no_session(
 
     for player in get_registered_players():
         user_id = player["user_id"]
-        try:
-            user = client.get_user(user_id) or await client.fetch_user(user_id)
-            await user.send(embed=embed)
-        except Exception:
-            log.exception("Failed to send no-session notification to user_id=%s", user_id)
+        await send_planned_session_message_dm(
+            client,
+            user_id,
+            lambda user, embed=embed: user.send(embed=embed),
+        )
 
 
 async def _post_event_links(
@@ -374,7 +498,10 @@ def _slot_week_index(slot_key: str) -> int:
     return int(prefix.removeprefix("week_"))
 
 
-def _build_recap_selection_embed(suggestions: list[SuggestedDate]) -> discord.Embed:
+def _build_recap_selection_embed(
+    suggestions: list[SuggestedDate],
+    manual_override: bool = False,
+) -> discord.Embed:
     selected_dates = "\n".join(
         f"- {suggestion.label}"
         for suggestion in suggestions
@@ -390,6 +517,8 @@ def _build_recap_selection_embed(suggestions: list[SuggestedDate]) -> discord.Em
         title="📜 Choose recap duty",
         description=(
             "Pick who will recap the previous session before these dates are announced."
+            if not manual_override
+            else "Pick who will recap before these manually overridden dates are announced."
         ),
         color=discord.Color.blurple(),
     )
@@ -404,3 +533,37 @@ def _truncate_option_description(description: str) -> str:
         return description
 
     return description[:97] + "..."
+
+
+def _build_manual_dates(week_index: int) -> list[SuggestedDate]:
+    return [
+        SuggestedDate(
+            slot_key=slot_key,
+            label=label,
+            session_datetime=session_datetime,
+            kind="manual",
+        )
+        for session_datetime, slot_key, label in get_availability_slot_details(
+            get_planning_started_at(),
+            week_index=week_index,
+        )
+    ]
+
+
+def _sort_players_for_recap(players: list[dict]) -> list[dict]:
+    recap_names = [
+        nickname.strip().lower()
+        for nickname in RECAP_ROTATION.split("->")
+    ]
+    order_by_name = {
+        nickname: index
+        for index, nickname in enumerate(recap_names)
+    }
+
+    return sorted(
+        players,
+        key=lambda player: (
+            order_by_name.get(player["nickname"].lower(), len(recap_names)),
+            player["nickname"].lower(),
+        ),
+    )
